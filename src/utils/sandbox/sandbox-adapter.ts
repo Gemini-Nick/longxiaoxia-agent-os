@@ -20,6 +20,8 @@ type SandboxViolationEvent = any
 // ---------------------------------------------------------------------------
 // Lazy-load @anthropic-ai/sandbox-runtime (optional dependency)
 // ---------------------------------------------------------------------------
+import { createRequire } from 'module'
+
 let _sandboxModule: any = null
 let _sandboxLoadAttempted = false
 
@@ -27,9 +29,8 @@ function getSandboxModule(): any {
   if (!_sandboxLoadAttempted) {
     _sandboxLoadAttempted = true
     try {
-      // Use require so the module is resolved at call-time, not import-time.
-      // This keeps the SDK functional when the package is absent.
-      _sandboxModule = require('@anthropic-ai/sandbox-runtime')
+      const _require = createRequire(import.meta.url)
+      _sandboxModule = _require('@anthropic-ai/sandbox-runtime')
     } catch {
       _sandboxModule = null
     }
