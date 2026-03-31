@@ -6,7 +6,7 @@
  *
  * Run: npx tsx examples/04-prompt-api.ts
  */
-import { createAgent } from '../src/agent.js'
+import { createAgent } from '@shipany/open-agent-sdk'
 
 async function main() {
   console.log('--- Example 4: Simple Prompt API ---\n')

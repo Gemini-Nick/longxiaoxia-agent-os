@@ -10,7 +10,7 @@
  *
  * Run: npx tsx examples/06-mcp-server.ts
  */
-import { createAgent } from '../src/agent.js'
+import { createAgent } from '@shipany/open-agent-sdk'
 
 async function main() {
   console.log('--- Example 6: MCP Server Integration ---\n')

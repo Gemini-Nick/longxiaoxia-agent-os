@@ -6,7 +6,7 @@
  *
  * Run: npx tsx examples/08-official-api-compat.ts
  */
-import { query } from '../src/sdk.js'
+import { query } from '@shipany/open-agent-sdk'
 
 async function main() {
   console.log('--- Example 8: Official SDK-Compatible API ---\n')

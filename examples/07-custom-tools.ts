@@ -5,8 +5,7 @@
  *
  * Run: npx tsx examples/07-custom-tools.ts
  */
-import '../src/setup-globals.js'
-import { createAgent, getAllBaseTools } from '../src/sdk.js'
+import { createAgent, getAllBaseTools } from '@shipany/open-agent-sdk'
 
 /**
  * Helper to create custom tools compatible with the engine.

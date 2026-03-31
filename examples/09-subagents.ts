@@ -6,7 +6,7 @@
  *
  * Run: npx tsx examples/09-subagents.ts
  */
-import { query } from '../src/sdk.js'
+import { query } from '@shipany/open-agent-sdk'
 
 async function main() {
   console.log('--- Example 9: Subagents ---\n')

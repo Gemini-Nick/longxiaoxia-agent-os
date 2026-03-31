@@ -6,7 +6,7 @@
  *
  * Run: npx tsx examples/02-multi-tool.ts
  */
-import { createAgent } from '../src/agent.js'
+import { createAgent } from '@shipany/open-agent-sdk'
 
 async function main() {
   console.log('--- Example 2: Multi-Tool Orchestration ---\n')

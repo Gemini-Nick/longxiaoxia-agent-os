@@ -6,7 +6,7 @@
  *
  * Run: npx tsx examples/01-simple-query.ts
  */
-import { createAgent } from '../src/agent.js'
+import { createAgent } from '@shipany/open-agent-sdk'
 
 async function main() {
   console.log('--- Example 1: Simple Query ---\n')

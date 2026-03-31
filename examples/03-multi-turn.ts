@@ -6,7 +6,7 @@
  *
  * Run: npx tsx examples/03-multi-turn.ts
  */
-import { createAgent } from '../src/agent.js'
+import { createAgent } from '@shipany/open-agent-sdk'
 
 async function main() {
   console.log('--- Example 3: Multi-Turn Conversation ---\n')
