@@ -5,6 +5,11 @@ declare global {
     agentAPI: {
       query: (message: string) => Promise<{ ok: boolean }>
       clear: () => Promise<{ ok: boolean }>
+      getMode: () => Promise<{ mode: string; alive: boolean }>
+      getCwd: () => Promise<string>
+      selectCwd: () => Promise<{ cwd: string; skills: SkillInfo[] } | null>
+      setCwd: (path: string) => Promise<{ cwd: string; skills: SkillInfo[] } | null>
+      getSkills: () => Promise<SkillInfo[]>
       onText: (cb: (text: string) => void) => () => void
       onTool: (cb: (tool: { name: string; input: any }) => void) => () => void
       onResult: (cb: (result: any) => void) => () => void
@@ -12,6 +17,8 @@ declare global {
     }
   }
 }
+
+type SkillInfo = { name: string; path: string; description: string; project?: string }
 
 type Message = {
   role: 'user' | 'assistant' | 'tool' | 'error'
@@ -196,10 +203,31 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [cwd, setCwd] = useState('')
+  const [skills, setSkills] = useState<SkillInfo[]>([])
+  const [skillsPanelOpen, setSkillsPanelOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const mdRef = useRef<HTMLDivElement>(null)
   const currentTextRef = useRef('')
   const smooth = useSmoothBuffer()
+
+  // Load initial cwd and skills
+  useEffect(() => {
+    window.agentAPI.getCwd().then(setCwd)
+    window.agentAPI.getSkills().then(setSkills)
+  }, [])
+
+  const handleSelectCwd = async () => {
+    const result = await window.agentAPI.selectCwd()
+    if (result) {
+      setCwd(result.cwd)
+      setSkills(result.skills)
+      // Clear conversation since cwd changed
+      setMessages([])
+      currentTextRef.current = ''
+      smooth.reset()
+    }
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -317,13 +345,54 @@ export default function App() {
 
       {/* Main chat area */}
       <div style={mainAreaStyle}>
-        {/* Toggle sidebar */}
+        {/* Top bar: sidebar toggle + cwd + skills */}
         <div style={topBarStyle}>
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} style={toggleBtnStyle}>
-            {sidebarOpen ? '◀' : '▶'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} style={toggleBtnStyle}>
+              {sidebarOpen ? '◀' : '▶'}
+            </button>
+            <button onClick={handleSelectCwd} style={cwdBtnStyle} title={cwd}>
+              📁 {cwd ? cwd.split('/').slice(-2).join('/') : '选择目录'}
+            </button>
+            {skills.length > 0 && (
+              <button
+                onClick={() => setSkillsPanelOpen(!skillsPanelOpen)}
+                style={{ ...toggleBtnStyle, color: 'var(--accent)' }}
+              >
+                ⚡ {skills.length} Skills
+              </button>
+            )}
+          </div>
           <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>ACP Mode</span>
         </div>
+
+        {/* Skills panel — grouped by project */}
+        {skillsPanelOpen && skills.length > 0 && (
+          <div style={skillsPanelStyle}>
+            {Object.entries(
+              skills.reduce((groups, skill) => {
+                const key = skill.project || 'other'
+                ;(groups[key] = groups[key] || []).push(skill)
+                return groups
+              }, {} as Record<string, SkillInfo[]>)
+            ).map(([project, items]) => (
+              <div key={project} style={{ marginBottom: 8 }}>
+                <div style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {project}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {items.map((skill, i) => (
+                    <div key={i} style={skillItemStyle} title={skill.description}>
+                      <span style={{ color: skill.name.includes('CLAUDE.md') ? 'var(--accent)' : '#6adb6a', fontSize: 11, fontFamily: 'monospace' }}>
+                        {skill.name.includes('CLAUDE.md') ? '📄' : '⚡'} {skill.name.replace(`${project}/`, '')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Messages */}
         <div style={messagesContainerStyle} ref={mdRef}>
@@ -511,6 +580,39 @@ const toggleBtnStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontSize: 14,
   padding: '4px 8px',
+}
+
+const cwdBtnStyle: React.CSSProperties = {
+  background: 'var(--bg-input)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  color: 'var(--text-label)',
+  cursor: 'pointer',
+  fontSize: 12,
+  padding: '4px 10px',
+  maxWidth: 200,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
+
+const skillsPanelStyle: React.CSSProperties = {
+  background: 'var(--bg-sidebar)',
+  borderBottom: '1px solid var(--border)',
+  padding: '8px 16px',
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 6,
+}
+
+const skillItemStyle: React.CSSProperties = {
+  background: 'var(--bg-input)',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  padding: '4px 10px',
+  display: 'flex',
+  alignItems: 'center',
+  cursor: 'default',
 }
 
 const messagesContainerStyle: React.CSSProperties = {
