@@ -38,6 +38,53 @@ npm run electron:start
 src/          # OAS 核心（尽量不改，保持上游同步）
 electron/     # Electron 入口 & 主进程
 mcp-servers/  # Python MCP 服务（缠论、PPT、尽调等）
+apps/runtime/ # weclaw guardian v2 runtime（launchd + guardian core）
+scripts/guardian/ # 迁移、验证、退役脚本
+```
+
+## Runtime 重构（Guardian v2）
+
+旧的 `weclaw/watchdog/guardian` 心跳循环已迁移到统一控制面方案：
+
+- `weclaw-guardian`：统一监控与重启控制（Go 核心）
+- `weguard`：guardian 运维命令入口（`status/restart/monitor`）
+- `codex` / `claude` / `weclaw` / `repo-scheduler`：独立 launchd 服务
+- `weclaw` 保留给 fastclaw 微信桥，不再由 guardian 覆盖
+
+常用命令：
+
+```bash
+npm run guardian:inventory
+npm run guardian:build
+npm run guardian:install
+npm run guardian:verify
+npm run guardian:retire
+```
+
+## 单包安装边界
+
+这套后台服务产品化后，建议按两层打包：
+
+- 产品层：`apps/runtime/` + `scripts/guardian/`
+- 内核层：`weclaw-real`
+
+目标是让另一台 Mac 只执行一次安装入口，例如：
+
+```bash
+bash install.sh
+```
+
+安装包内部负责：
+
+- 安装 `weclaw-real`
+- 安装 runtime
+- 写入 `LaunchAgents`
+- 启动 `guardian/codex/claude/weclaw/repo-scheduler`
+
+首次仍需用户手工执行：
+
+```bash
+~/.weclaw/bin/weclaw login
 ```
 
 ## 上游同步

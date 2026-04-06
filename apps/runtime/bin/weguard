@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_CONFIG="${WECLAW_CONFIG:-$HOME/.weclaw/services.json}"
+
+find_guardian_bin() {
+  local candidates=(
+    "$SCRIPT_DIR/weclaw-guardian"
+    "$HOME/.weclaw/bin/weclaw-guardian"
+  )
+
+  for c in "${candidates[@]}"; do
+    if [[ -x "$c" ]]; then
+      printf '%s\n' "$c"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if ! GUARDIAN_BIN="$(find_guardian_bin)"; then
+  cat >&2 <<ERR
+weclaw-guardian binary not found.
+Build it from your longclaw-agent-os repository:
+  bash scripts/guardian/build-core.sh
+ERR
+  exit 1
+fi
+
+cmd="${1:-status}"
+shift || true
+
+case "$cmd" in
+  start|monitor)
+    exec "$GUARDIAN_BIN" monitor --config "$DEFAULT_CONFIG" "$@"
+    ;;
+  status)
+    exec "$GUARDIAN_BIN" status --config "$DEFAULT_CONFIG" "$@"
+    ;;
+  restart)
+    exec "$GUARDIAN_BIN" restart --config "$DEFAULT_CONFIG" "$@"
+    ;;
+  active-agent)
+    exec "$GUARDIAN_BIN" active-agent --config "$DEFAULT_CONFIG" "$@"
+    ;;
+  failover)
+    subcmd="${1:-status}"
+    shift || true
+    exec "$GUARDIAN_BIN" failover "$subcmd" --config "$DEFAULT_CONFIG" "$@"
+    ;;
+  *)
+    exec "$GUARDIAN_BIN" "$cmd" "$@"
+    ;;
+esac

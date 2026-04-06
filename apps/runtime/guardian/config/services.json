@@ -1,0 +1,44 @@
+{
+  "poll_interval_seconds": 30,
+  "log_file": "/tmp/longclaw-guardian/guardian-core.log",
+  "failover_state_file": "~/.weclaw/runtime/active-agent.json",
+  "weclaw_config_path": "~/.weclaw/config.json",
+  "failback_success_threshold": 3,
+  "services": [
+    {
+      "name": "codex",
+      "label": "com.zhangqilong.ai.codex.appserver",
+      "domain": "system",
+      "service_type": "service",
+      "restart_base_seconds": 30,
+      "max_backoff_seconds": 600
+    },
+    {
+      "name": "claude",
+      "label": "com.zhangqilong.ai.claude.worker",
+      "domain": "gui",
+      "uid": 501,
+      "service_type": "service",
+      "restart_base_seconds": 30,
+      "max_backoff_seconds": 600
+    },
+    {
+      "name": "weclaw",
+      "label": "com.zhangqilong.ai.weclaw.bridge",
+      "domain": "gui",
+      "uid": 501,
+      "service_type": "service",
+      "restart_base_seconds": 30,
+      "max_backoff_seconds": 600
+    },
+    {
+      "name": "repo-scheduler",
+      "label": "com.zhangqilong.ai.repo.scheduler",
+      "domain": "gui",
+      "uid": 501,
+      "service_type": "scheduled",
+      "restart_base_seconds": 60,
+      "max_backoff_seconds": 600
+    }
+  ]
+}

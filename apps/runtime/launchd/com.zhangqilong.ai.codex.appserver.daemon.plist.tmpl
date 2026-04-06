@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.zhangqilong.ai.codex.appserver</string>
+  <key>UserName</key>
+  <string>__USER__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__RUNTIME_DIR__/bin/codex-appserver.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>LONGCLAW_LOG_DIR</key>
+    <string>__LOG_DIR__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>20</integer>
+  <key>WorkingDirectory</key>
+  <string>__HOME__</string>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/codex.service.launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/codex.service.launchd.log</string>
+</dict>
+</plist>

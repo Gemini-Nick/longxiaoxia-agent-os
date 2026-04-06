@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+WECLAW_HOME="${WECLAW_HOME:-$HOME/.weclaw}"
+REAL_BIN="${WECLAW_REAL_BIN:-$WECLAW_HOME/bin/weclaw-real}"
+PID_FILE="${WECLAW_PID_FILE:-$WECLAW_HOME/weclaw.pid}"
+PORT="${WECLAW_PORT:-18011}"
+LOG_FILE="${WECLAW_LOG_FILE:-$WECLAW_HOME/weclaw.log}"
+LAUNCHD_LABEL="${WECLAW_LAUNCHD_LABEL:-com.zhangqilong.ai.weclaw.bridge}"
+LAUNCHD_PLIST="${WECLAW_LAUNCHD_PLIST:-$HOME/Library/LaunchAgents/$LAUNCHD_LABEL.plist}"
+LAUNCHD_TARGET="gui/$(id -u)/$LAUNCHD_LABEL"
+
+listener_pid() {
+  lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
+}
+
+pid_from_file() {
+  [[ -f "$PID_FILE" ]] || return 1
+  tr -d '[:space:]' <"$PID_FILE"
+}
+
+ensure_real_bin() {
+  if [[ ! -x "$REAL_BIN" ]]; then
+    echo "weclaw real binary not found: $REAL_BIN" >&2
+    exit 1
+  fi
+}
+
+launchd_loaded() {
+  launchctl print "$LAUNCHD_TARGET" >/dev/null 2>&1
+}
+
+case "${1:-}" in
+  status)
+    pid="$(pid_from_file || true)"
+    if [[ -n "${pid:-}" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+      echo "weclaw is running (pid=$pid)"
+      echo "Log: $LOG_FILE"
+      exit 0
+    fi
+
+    listen_pid="$(listener_pid)"
+    if [[ -n "${listen_pid:-}" ]]; then
+      echo "weclaw is running (listener=127.0.0.1:$PORT pid=$listen_pid)"
+      echo "Log: $LOG_FILE"
+      exit 0
+    fi
+
+    if [[ -n "${pid:-}" ]]; then
+      echo "weclaw is not running (stale pid file)"
+    else
+      echo "weclaw is not running"
+    fi
+    exit 0
+    ;;
+  stop)
+    ensure_real_bin
+    if launchd_loaded; then
+      launchctl bootout "$LAUNCHD_TARGET" >/dev/null 2>&1 || true
+      sleep 1
+    fi
+    "$REAL_BIN" stop >/dev/null 2>&1 || true
+    listen_pid="$(listener_pid)"
+    if [[ -n "${listen_pid:-}" ]]; then
+      kill "$listen_pid" >/dev/null 2>&1 || true
+      sleep 1
+      if kill -0 "$listen_pid" >/dev/null 2>&1; then
+        kill -9 "$listen_pid" >/dev/null 2>&1 || true
+      fi
+    fi
+    rm -f "$PID_FILE"
+    echo "weclaw stopped"
+    ;;
+  restart)
+    ensure_real_bin
+    if launchd_loaded; then
+      exec launchctl kickstart -k "$LAUNCHD_TARGET"
+    fi
+    if [[ -f "$LAUNCHD_PLIST" ]]; then
+      exec launchctl bootstrap "gui/$(id -u)" "$LAUNCHD_PLIST"
+    fi
+    "$0" stop >/dev/null 2>&1 || true
+    exec "$REAL_BIN" start
+    ;;
+  *)
+    ensure_real_bin
+    exec "$REAL_BIN" "$@"
+    ;;
+esac
