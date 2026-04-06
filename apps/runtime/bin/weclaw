@@ -6,6 +6,8 @@ REAL_BIN="${WECLAW_REAL_BIN:-$WECLAW_HOME/bin/weclaw-real}"
 PID_FILE="${WECLAW_PID_FILE:-$WECLAW_HOME/weclaw.pid}"
 PORT="${WECLAW_PORT:-18011}"
 LOG_FILE="${WECLAW_LOG_FILE:-$WECLAW_HOME/weclaw.log}"
+ACCOUNTS_DIR="${WECLAW_ACCOUNTS_DIR:-$WECLAW_HOME/accounts}"
+ARCHIVE_DIR="${WECLAW_ARCHIVE_DIR:-$ACCOUNTS_DIR/archive}"
 LAUNCHD_LABEL="${WECLAW_LAUNCHD_LABEL:-com.zhangqilong.ai.weclaw.bridge}"
 LAUNCHD_PLIST="${WECLAW_LAUNCHD_PLIST:-$HOME/Library/LaunchAgents/$LAUNCHD_LABEL.plist}"
 LAUNCHD_TARGET="gui/$(id -u)/$LAUNCHD_LABEL"
@@ -28,6 +30,98 @@ ensure_real_bin() {
 
 launchd_loaded() {
   launchctl print "$LAUNCHD_TARGET" >/dev/null 2>&1
+}
+
+list_account_files() {
+  [[ -d "$ACCOUNTS_DIR" ]] || return 0
+  find "$ACCOUNTS_DIR" -maxdepth 1 -type f -name '*-im-bot.json' | sort
+}
+
+latest_account_file() {
+  local latest="" latest_mtime=0 file mtime
+  while IFS= read -r file; do
+    [[ -n "$file" ]] || continue
+    mtime="$(stat -f '%m' "$file" 2>/dev/null || echo 0)"
+    if (( mtime >= latest_mtime )); then
+      latest="$file"
+      latest_mtime="$mtime"
+    fi
+  done
+
+  [[ -n "$latest" ]] || return 1
+  printf '%s\n' "$latest"
+}
+
+restart_bridge() {
+  ensure_real_bin
+  if launchd_loaded; then
+    launchctl kickstart -k "$LAUNCHD_TARGET"
+    return
+  fi
+  if [[ -f "$LAUNCHD_PLIST" ]]; then
+    launchctl bootstrap "gui/$(id -u)" "$LAUNCHD_PLIST"
+    return
+  fi
+  "$0" stop >/dev/null 2>&1 || true
+  "$REAL_BIN" start
+}
+
+archive_inactive_accounts() {
+  local current="$1" file sync_file archived=()
+  mkdir -p "$ARCHIVE_DIR"
+
+  while IFS= read -r file; do
+    [[ -n "$file" ]] || continue
+    if [[ "$file" == "$current" ]]; then
+      continue
+    fi
+
+    mv "$file" "$ARCHIVE_DIR/"
+    archived+=("$(basename "$file")")
+
+    sync_file="${file%.json}.sync.json"
+    if [[ -f "$sync_file" ]]; then
+      mv "$sync_file" "$ARCHIVE_DIR/"
+      archived+=("$(basename "$sync_file")")
+    fi
+  done < <(list_account_files)
+
+  printf 'Archived accounts:\n'
+  if ((${#archived[@]})); then
+    printf '  %s\n' "${archived[@]}"
+  else
+    printf '  (none)\n'
+  fi
+}
+
+handle_login() {
+  ensure_real_bin
+
+  local before_file after_file new_files current
+  before_file="$(mktemp)"
+  after_file="$(mktemp)"
+  trap 'rm -f "$before_file" "$after_file"' RETURN
+
+  list_account_files >"$before_file"
+  "$REAL_BIN" login "$@"
+  list_account_files >"$after_file"
+
+  new_files="$(comm -13 "$before_file" "$after_file" || true)"
+  if [[ -n "$new_files" ]]; then
+    current="$(printf '%s\n' "$new_files" | latest_account_file || true)"
+  else
+    current="$(latest_account_file <"$after_file" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "${current:-}" ]]; then
+    echo "login succeeded but no account file was found under $ACCOUNTS_DIR" >&2
+    return 1
+  fi
+
+  printf 'Active account: %s\n' "$(basename "$current")"
+  archive_inactive_accounts "$current"
+  restart_bridge
+  printf 'weclaw bridge restarted\n'
 }
 
 case "${1:-}" in
@@ -72,15 +166,10 @@ case "${1:-}" in
     echo "weclaw stopped"
     ;;
   restart)
-    ensure_real_bin
-    if launchd_loaded; then
-      exec launchctl kickstart -k "$LAUNCHD_TARGET"
-    fi
-    if [[ -f "$LAUNCHD_PLIST" ]]; then
-      exec launchctl bootstrap "gui/$(id -u)" "$LAUNCHD_PLIST"
-    fi
-    "$0" stop >/dev/null 2>&1 || true
-    exec "$REAL_BIN" start
+    restart_bridge
+    ;;
+  login)
+    handle_login "$@"
     ;;
   *)
     ensure_real_bin

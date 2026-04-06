@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -755,21 +756,13 @@ func detectWeclawHealth() WeclawHealth {
 	}
 
 	logPath := expandHome("~/.weclaw/weclaw.log")
+	recentExpired := recentWeclawLogContains(logPath, "WeChat session expired and cannot be auto-recovered", 80)
 	if listener, err := exec.Command("bash", "-lc", "lsof -nP -iTCP:18011 -sTCP:LISTEN 2>/dev/null | rg -q 'weclaw'").CombinedOutput(); err == nil {
 		_ = listener
-		if data, err := os.ReadFile(logPath); err == nil {
-			text := string(data)
-			if idx := strings.LastIndex(text, "WeChat session expired and cannot be auto-recovered"); idx >= 0 {
-				return WeclawHealth{Healthy: false, Status: "session_expired", Reason: "wechat session expired"}
-			}
-		}
-		return WeclawHealth{Healthy: true, Status: "running", Reason: "weclaw listener active on 127.0.0.1:18011"}
-	}
-	if data, err := os.ReadFile(logPath); err == nil {
-		text := string(data)
-		if idx := strings.LastIndex(text, "WeChat session expired and cannot be auto-recovered"); idx >= 0 {
+		if recentExpired {
 			return WeclawHealth{Healthy: false, Status: "session_expired", Reason: "wechat session expired"}
 		}
+		return WeclawHealth{Healthy: true, Status: "running", Reason: "weclaw listener active on 127.0.0.1:18011"}
 	}
 
 	cmd := exec.Command(binPath, "status")
@@ -781,10 +774,43 @@ func detectWeclawHealth() WeclawHealth {
 	if strings.Contains(text, "stale pid file") {
 		return WeclawHealth{Healthy: false, Status: "not_running", Reason: text}
 	}
+	if recentExpired {
+		return WeclawHealth{Healthy: false, Status: "session_expired", Reason: "wechat session expired"}
+	}
 	if text != "" {
 		return WeclawHealth{Healthy: false, Status: "status_failed", Reason: text}
 	}
 	return WeclawHealth{Healthy: false, Status: "status_failed", Reason: "weclaw status unavailable"}
+}
+
+func recentWeclawLogContains(path, marker string, maxLines int) bool {
+	if maxLines <= 0 {
+		return false
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	lines := make([]string, 0, maxLines)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if len(lines) == maxLines {
+			copy(lines, lines[1:])
+			lines[len(lines)-1] = scanner.Text()
+			continue
+		}
+		lines = append(lines, scanner.Text())
+	}
+
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.Contains(lines[i], marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func failoverFields(state FailoverState) map[string]any {
