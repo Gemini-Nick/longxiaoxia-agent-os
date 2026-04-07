@@ -33,6 +33,10 @@ npm-debug.log*
 # Runtime build artifacts
 apps/runtime/guardian/weclaw-guardian
 apps/runtime/bin/weclaw-guardian
+harness/generated/*
+!harness/generated/.gitkeep
+harness/state/*
+!harness/state/.gitkeep
 
 # Lock file (optional: include if you want reproducible builds)
 # package-lock.json

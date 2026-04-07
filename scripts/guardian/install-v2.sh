@@ -169,7 +169,7 @@ if (fs.existsSync(cfgPath)) {
 }
 if (!cfg.agents || typeof cfg.agents !== 'object') cfg.agents = {};
 
-const preferredVaultDir = path.join(homeDir, 'Documents', 'Obsidian Vault');
+const preferredVaultDir = path.join(homeDir, 'Desktop', '知识库');
 const currentVault = readCurrentVault(preferredVaultDir);
 cfg.save_dir = cfg.save_dir || path.join(homeDir, '.weclaw', 'workspace');
 cfg.persona_dir = cfg.persona_dir || path.join(homeDir, '.weclaw', 'personas');
@@ -179,13 +179,13 @@ if (cfg.obsidian_enabled === undefined) cfg.obsidian_enabled = true;
 if (cfg.obsidian_formal_write_enabled === undefined) cfg.obsidian_formal_write_enabled = true;
 cfg.obsidian_vault_dir = currentVault.dir;
 cfg.obsidian_vault_name = currentVault.name;
-cfg.obsidian_notes_dir = cfg.obsidian_notes_dir || 'Inbox/WeChat';
-cfg.obsidian_assets_dir = cfg.obsidian_assets_dir || 'Assets/WeChat';
+cfg.obsidian_notes_dir = '10 Inbox/WeChat';
+cfg.obsidian_assets_dir = 'Assets/WeChat';
 if (cfg.obsidian_auto_archive_enabled === undefined) cfg.obsidian_auto_archive_enabled = true;
 cfg.obsidian_auto_archive_mode = cfg.obsidian_auto_archive_mode || 'hybrid';
 if (cfg.obsidian_archive_window_minutes === undefined) cfg.obsidian_archive_window_minutes = 30;
 if (cfg.obsidian_archive_reply_enabled === undefined) cfg.obsidian_archive_reply_enabled = true;
-cfg.obsidian_voice_archive_mode = cfg.obsidian_voice_archive_mode || 'audio+transcript';
+cfg.obsidian_voice_archive_mode = cfg.obsidian_voice_archive_mode || 'transcript_only';
 cfg.obsidian_video_archive_mode = cfg.obsidian_video_archive_mode || 'asset+summary';
 cfg.agent_input_policy = cfg.agent_input_policy || 'canonical';
 
