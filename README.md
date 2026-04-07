@@ -107,6 +107,8 @@ git fetch upstream
 git merge upstream/main
 
 另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，用于约束 `weclaw` 与 `agent-os` 的长期分层边界。
+
+`weclaw` 的消费策略见 [docs/WECLAW_CONSUMPTION.md](docs/WECLAW_CONSUMPTION.md)。`agent-os` 只应消费已验证的 fork 构建产物，不直接追 `fastclaw-ai/weclaw`。
 ```
 
 ## License

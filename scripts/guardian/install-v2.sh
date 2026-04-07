@@ -34,24 +34,53 @@ cp "$RUNTIME_SRC_DIR/config/workspace-watchdog.json" "$RUNTIME_INSTALL_DIR/confi
 chmod +x "$RUNTIME_INSTALL_DIR/bin/"*
 
 log "install weclaw core binary"
+WECLAW_SOURCE_TYPE=""
+WECLAW_SOURCE_COMMIT=""
 if [[ -x "$WECLAW_REAL_BUNDLE" ]]; then
   cp "$WECLAW_REAL_BUNDLE" "$WECLAW_BIN_DIR/weclaw-real"
   chmod +x "$WECLAW_BIN_DIR/weclaw-real"
   ad_hoc_sign_binary "$WECLAW_BIN_DIR/weclaw-real"
+  WECLAW_SOURCE_TYPE="bundle"
 elif build_weclaw_real_from_repo "$WECLAW_REPO_DIR" /tmp/weclaw-real.from-repo; then
   log "built weclaw-real from repo $WECLAW_REPO_DIR"
   cp /tmp/weclaw-real.from-repo "$WECLAW_BIN_DIR/weclaw-real"
   chmod +x "$WECLAW_BIN_DIR/weclaw-real"
   ad_hoc_sign_binary "$WECLAW_BIN_DIR/weclaw-real"
+  WECLAW_SOURCE_TYPE="repo"
+  if [[ -d "$WECLAW_REPO_DIR/.git" ]]; then
+    WECLAW_SOURCE_COMMIT="$(git -C "$WECLAW_REPO_DIR" rev-parse HEAD 2>/dev/null || true)"
+  fi
 elif [[ -x "$WECLAW_BIN_DIR/weclaw-real" ]]; then
   log "reuse existing weclaw-real at $WECLAW_BIN_DIR/weclaw-real"
+  WECLAW_SOURCE_TYPE="existing"
 elif [[ -x "$WECLAW_BIN_DIR/weclaw" ]]; then
   mv "$WECLAW_BIN_DIR/weclaw" "$WECLAW_BIN_DIR/weclaw-real"
   chmod +x "$WECLAW_BIN_DIR/weclaw-real"
   ad_hoc_sign_binary "$WECLAW_BIN_DIR/weclaw-real"
+  WECLAW_SOURCE_TYPE="fallback-wrapper"
 else
   err "weclaw core binary missing. Expected bundle at $WECLAW_REAL_BUNDLE, repo at $WECLAW_REPO_DIR, existing $WECLAW_BIN_DIR/weclaw-real, or fallback $WECLAW_BIN_DIR/weclaw"
 fi
+
+log "record weclaw runtime manifest"
+node - "$WECLAW_HOME/runtime-manifest.json" "$WECLAW_SOURCE_TYPE" "$WECLAW_SOURCE_COMMIT" "$WECLAW_REPO_DIR" "${WECLAW_VERIFIED_REF:-}" "${WECLAW_RELEASE_CHANNEL:-}" <<'NODE'
+const fs = require('fs');
+const path = require('path');
+
+const [manifestPath, sourceType, sourceCommit, repoDir, verifiedRef, releaseChannel] = process.argv.slice(2);
+const manifest = {
+  weclaw: {
+    source_type: sourceType || 'unknown',
+    source_repo_dir: repoDir || '',
+    source_commit: sourceCommit || '',
+    verified_ref: verifiedRef || '',
+    release_channel: releaseChannel || '',
+    installed_at: new Date().toISOString(),
+  },
+};
+fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+NODE
 
 HAS_GUARDIAN_BIN=0
 GUARDIAN_BIN_SRC=""
