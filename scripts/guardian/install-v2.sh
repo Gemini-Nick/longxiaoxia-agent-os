@@ -136,7 +136,13 @@ const expandHome = input => {
   return input;
 };
 
-const readCurrentVault = () => {
+const readCurrentVault = preferredDir => {
+  if (preferredDir && fs.existsSync(preferredDir)) {
+    return {
+      dir: preferredDir,
+      name: path.basename(preferredDir),
+    };
+  }
   const statePath = path.join(homeDir, 'Library', 'Application Support', 'obsidian', 'obsidian.json');
   try {
     const raw = fs.readFileSync(statePath, 'utf8');
@@ -163,15 +169,16 @@ if (fs.existsSync(cfgPath)) {
 }
 if (!cfg.agents || typeof cfg.agents !== 'object') cfg.agents = {};
 
-const currentVault = readCurrentVault();
+const preferredVaultDir = path.join(homeDir, 'Desktop', '知识库');
+const currentVault = readCurrentVault(preferredVaultDir);
 cfg.save_dir = cfg.save_dir || path.join(homeDir, '.weclaw', 'workspace');
 cfg.persona_dir = cfg.persona_dir || path.join(homeDir, '.weclaw', 'personas');
 cfg.voice_input_mode_default = cfg.voice_input_mode_default || 'transcript_first';
 if (cfg.archive_tool_enabled === undefined) cfg.archive_tool_enabled = true;
 if (cfg.obsidian_enabled === undefined) cfg.obsidian_enabled = true;
 if (cfg.obsidian_formal_write_enabled === undefined) cfg.obsidian_formal_write_enabled = true;
-cfg.obsidian_vault_dir = cfg.obsidian_vault_dir || currentVault.dir;
-cfg.obsidian_vault_name = cfg.obsidian_vault_name || currentVault.name;
+cfg.obsidian_vault_dir = currentVault.dir;
+cfg.obsidian_vault_name = currentVault.name;
 cfg.obsidian_notes_dir = cfg.obsidian_notes_dir || 'Inbox/WeChat';
 cfg.obsidian_assets_dir = cfg.obsidian_assets_dir || 'Assets/WeChat';
 if (cfg.obsidian_auto_archive_enabled === undefined) cfg.obsidian_auto_archive_enabled = true;
