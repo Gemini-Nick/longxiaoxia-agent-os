@@ -14,6 +14,16 @@ AI 时代的 Wind/同花顺 — 金融业务 Agent 桌面应用。
 - 流式输出 + Markdown 渲染 + 代码语法高亮
 - 多入口：桌面端 / 微信（weclaw）/ 语音（Chanless）
 
+## 架构定位
+
+`longclaw-agent-os` 的目标是继续演化为完整桌面 agent 产品，但不重新实现微信桥接语义。
+
+- `weclaw`：微信桥接核心，负责消息语义、媒体规范化、语音 transcript-first、session/media facts、archive tool contract。
+- `agent-os runtime`：负责 install、guardian、scheduler、launchd、策略注入、健康检查。
+- `agent-os product`：负责 GUI、workspace 管理、任务中心、调试面板、通知与产品体验。
+
+这让 `Gemini-Nick/weclaw` 继续保持对上游 `fastclaw-ai/weclaw` 的可继承性，同时让 `longclaw-agent-os` 逐步向 `workany` 风格桌面产品演进。
+
 ## 快速开始
 
 ```bash
@@ -50,6 +60,7 @@ scripts/guardian/ # 迁移、验证、退役脚本
 - `weguard`：guardian 运维命令入口（`status/restart/monitor`）
 - `codex` / `claude` / `weclaw` / `repo-scheduler`：独立 launchd 服务
 - `weclaw` 保留给 fastclaw 微信桥，不再由 guardian 覆盖
+- runtime 只向 `~/.weclaw/config.json` 注入策略，不接管微信消息语义
 
 常用命令：
 
@@ -94,6 +105,8 @@ bash install.sh
 ```bash
 git fetch upstream
 git merge upstream/main
+
+另见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，用于约束 `weclaw` 与 `agent-os` 的长期分层边界。
 ```
 
 ## License
