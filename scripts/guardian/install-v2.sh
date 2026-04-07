@@ -169,7 +169,7 @@ if (fs.existsSync(cfgPath)) {
 }
 if (!cfg.agents || typeof cfg.agents !== 'object') cfg.agents = {};
 
-const preferredVaultDir = path.join(homeDir, 'Desktop', '知识库');
+const preferredVaultDir = path.join(homeDir, 'Documents', 'Obsidian Vault');
 const currentVault = readCurrentVault(preferredVaultDir);
 cfg.save_dir = cfg.save_dir || path.join(homeDir, '.weclaw', 'workspace');
 cfg.persona_dir = cfg.persona_dir || path.join(homeDir, '.weclaw', 'personas');
