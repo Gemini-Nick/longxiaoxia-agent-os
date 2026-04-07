@@ -30,5 +30,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Runtime build artifacts
+apps/runtime/guardian/weclaw-guardian
+apps/runtime/bin/weclaw-guardian
+
 # Lock file (optional: include if you want reproducible builds)
 # package-lock.json
