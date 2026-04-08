@@ -191,7 +191,7 @@ selected = dict(default)
 selected.update(repos.get(repo_key, {}))
 
 print(
-    "\t".join(
+    "|".join(
         [
             repo_key,
             str(selected.get("mode", "mirror_origin")),
@@ -615,7 +615,7 @@ main() {
       WORKSPACE)
         source_display="${sources:-scan}"
         local repo_key policy_mode canonical_remote branch allow_local_commits allow_dependency_updates upstream_remote
-        IFS=$'\t' read -r repo_key policy_mode canonical_remote branch allow_local_commits allow_dependency_updates upstream_remote <<<"$(load_repo_policy "$path")"
+        IFS='|' read -r repo_key policy_mode canonical_remote branch allow_local_commits allow_dependency_updates upstream_remote <<<"$(load_repo_policy "$path")"
         log "workspace category=$category path=$path repo_key=$repo_key policy_mode=$policy_mode sources=$source_display"
 
         if [[ "$category" != "git_repo" ]]; then

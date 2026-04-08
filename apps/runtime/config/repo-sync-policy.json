@@ -38,7 +38,8 @@
       "mode": "mirror_origin"
     },
     "czsc": {
-      "mode": "mirror_origin"
+      "mode": "mirror_origin",
+      "branch": "master"
     },
     "gstack": {
       "mode": "mirror_origin"
