@@ -29,6 +29,7 @@ Thumbs.db
 # Debug / logs
 *.log
 npm-debug.log*
+.gstack/
 
 # Runtime build artifacts
 apps/runtime/guardian/weclaw-guardian

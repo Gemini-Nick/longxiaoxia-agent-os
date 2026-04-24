@@ -778,7 +778,15 @@ async function collectRuntimeStatus(
 
   const duePackVisible = packs.some(pack => pack.pack_id === 'due_diligence')
   const signalsPackVisible = packs.some(pack => pack.pack_id === 'signals')
-  const [dueHealthReady] = await Promise.all([
+  const normalizedCoreBaseUrl = coreBaseUrl?.replace(/\/$/, '')
+  const [coreHealthReady, dueHealthReady] = await Promise.all([
+    // `getOverview()` can fall back to a synthesized local summary when Hermes is down,
+    // so connectivity must come from a direct probe rather than the fulfilled state alone.
+    probeHttpOk(
+      normalizedCoreBaseUrl
+        ? `${normalizedCoreBaseUrl}/agent-os/overview`
+        : undefined,
+    ),
     probeHttpOk(
       dueDiligenceBaseUrl
         ? `${dueDiligenceBaseUrl.replace(/\/$/, '')}/healthz`
@@ -790,7 +798,12 @@ async function collectRuntimeStatus(
     stack_env_loaded: runtimeStackEnv.loaded,
     stack_env_path: runtimeStackEnv.path,
     stack_env_applied_keys: runtimeStackEnv.appliedKeys,
-    longclaw_core_connected: Boolean(coreBaseUrl && getControlPlaneClient().isHermesBacked() && overviewReady),
+    longclaw_core_connected: Boolean(
+      normalizedCoreBaseUrl &&
+        getControlPlaneClient().isHermesBacked() &&
+        overviewReady &&
+        coreHealthReady,
+    ),
     longclaw_core_base_url: coreBaseUrl ?? '',
     due_diligence_connected: Boolean(duePackVisible || dueHealthReady),
     due_diligence_base_url: dueDiligenceBaseUrl ?? '',

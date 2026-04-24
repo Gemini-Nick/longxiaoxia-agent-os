@@ -23,16 +23,18 @@ import {
   StatusStrip,
   normalizePackRows,
 } from './shared.js'
+import { StrategyChartTerminal } from './StrategyChartTerminal.js'
 
 type SignalsPanel = 'overview' | 'chart' | 'review' | 'backtest' | 'connectors'
 
+export type PackSurface = 'execution' | 'strategy' | 'backtest' | 'factory'
+
 type PackWorkspaceProps = {
   locale: LongclawLocale
-  page: 'rpa' | 'signals'
+  surface: PackSurface
   dashboard: LongclawPackDashboard | null
+  signalsWebBaseUrl?: string
   localizedNotice?: string | null
-  signalsPanel: SignalsPanel
-  onChangeSignalsPanel: (panel: SignalsPanel) => void
   onRunAction: (action: LongclawOperatorAction) => Promise<void>
   onOpenRun: (run: LongclawRun) => Promise<void>
   onOpenRecord: (
@@ -46,6 +48,13 @@ const packGridStyle: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
   gap: 12,
+}
+
+const strategyPackShellStyle: React.CSSProperties = {
+  height: '100%',
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
 }
 
 const denseListStyle: React.CSSProperties = {
@@ -849,34 +858,297 @@ function SignalsPackView({
   )
 }
 
+export type SignalsStrategyVM = Pick<
+  SignalsDashboard,
+  | 'overview'
+  | 'buy_candidates'
+  | 'sell_warnings'
+  | 'chart_context'
+  | 'review_runs'
+  | 'connector_health'
+  | 'deep_links'
+>
+
+export type SignalsBacktestVM = Pick<
+  SignalsDashboard,
+  'backtest_summary' | 'backtest_jobs' | 'pending_backlog_preview' | 'review_runs'
+>
+
+export type SignalsFactoryVM = Pick<
+  SignalsDashboard,
+  'diagnostics' | 'connector_health' | 'deep_links'
+>
+
+export type FactoryVM = SignalsFactoryVM
+
+function toSignalsStrategyVM(dashboard: SignalsDashboard): SignalsStrategyVM {
+  return {
+    overview: dashboard.overview,
+    buy_candidates: dashboard.buy_candidates,
+    sell_warnings: dashboard.sell_warnings,
+    chart_context: dashboard.chart_context,
+    review_runs: dashboard.review_runs,
+    connector_health: dashboard.connector_health,
+    deep_links: dashboard.deep_links,
+  }
+}
+
+function toSignalsBacktestVM(dashboard: SignalsDashboard): SignalsBacktestVM {
+  return {
+    backtest_summary: dashboard.backtest_summary,
+    backtest_jobs: dashboard.backtest_jobs,
+    pending_backlog_preview: dashboard.pending_backlog_preview,
+    review_runs: dashboard.review_runs,
+  }
+}
+
+function toSignalsFactoryVM(dashboard: SignalsDashboard): SignalsFactoryVM {
+  return {
+    diagnostics: dashboard.diagnostics,
+    connector_health: dashboard.connector_health,
+    deep_links: dashboard.deep_links,
+  }
+}
+
+function SignalsStrategyView({
+  locale,
+  dashboard,
+  signalsWebBaseUrl,
+  onOpenRun,
+  onOpenRecord,
+}: {
+  locale: LongclawLocale
+  dashboard: SignalsStrategyVM
+  signalsWebBaseUrl?: string
+  onOpenRun: (run: LongclawRun) => Promise<void>
+  onOpenRecord: (
+    title: string,
+    record: Record<string, unknown>,
+    actions?: LongclawOperatorAction[],
+  ) => void
+}) {
+  return (
+    <StrategyChartTerminal
+      locale={locale}
+      dashboard={dashboard}
+      signalsWebBaseUrl={signalsWebBaseUrl}
+      onOpenRun={onOpenRun}
+      onOpenRecord={onOpenRecord}
+    />
+  )
+}
+
+function SignalsBacktestView({
+  locale,
+  dashboard,
+  onOpenRun,
+  onOpenRecord,
+}: {
+  locale: LongclawLocale
+  dashboard: SignalsBacktestVM
+  onOpenRun: (run: LongclawRun) => Promise<void>
+  onOpenRecord: (
+    title: string,
+    record: Record<string, unknown>,
+    actions?: LongclawOperatorAction[],
+  ) => void
+}) {
+  return (
+    <div style={packGridStyle}>
+      <Section
+        title={t(locale, 'section.pack.signals.backtest_backlog.title')}
+        subtitle={t(locale, 'section.pack.signals.backtest_backlog.subtitle')}
+      >
+        <StatusStrip
+          locale={locale}
+          items={[
+            { label: t(locale, 'label.total'), value: dashboard.backtest_summary.total },
+            {
+              label: t(locale, 'label.evaluated'),
+              value: dashboard.backtest_summary.evaluated,
+              tone: 'success',
+            },
+            {
+              label: t(locale, 'label.pending'),
+              value: dashboard.backtest_summary.pending,
+              tone: 'needs_review',
+            },
+          ]}
+        />
+        <div style={{ ...denseListStyle, marginTop: 12 }}>
+          {dashboard.pending_backlog_preview.length === 0 ? (
+            <div style={utilityStyles.emptyState}>{t(locale, 'empty.no_backlog')}</div>
+          ) : (
+            dashboard.pending_backlog_preview.map(item => (
+              <div
+                key={`${item.symbol}-${item.signal_date}-${item.signal_type}`}
+                style={surfaceStyles.listRow}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                  <div style={{ fontWeight: 600, color: palette.ink }}>{item.symbol}</div>
+                  <div style={chromeStyles.quietMeta}>
+                    {item.signal_type} · {item.freq}
+                  </div>
+                </div>
+                <div style={chromeStyles.monoMeta}>{item.signal_date}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </Section>
+      <PackListSection
+        locale={locale}
+        title={locale === 'zh-CN' ? '回测输入候选' : 'Backtest input queue'}
+        subtitle={
+          locale === 'zh-CN'
+            ? 'Review runs 在这里作为 web2 回测的输入候选，而不是广义研究工作台。'
+            : 'Review runs stay here as backtest inputs rather than a general research workspace.'
+        }
+        rows={dashboard.review_runs as Array<Record<string, unknown>>}
+        onOpen={run => {
+          void onOpenRun(run as LongclawRun)
+        }}
+      />
+      <PackListSection
+        locale={locale}
+        title={locale === 'zh-CN' ? '回测作业' : 'Backtest jobs'}
+        subtitle={
+          locale === 'zh-CN'
+            ? '来自 web2 分析和本地运行记录的回测摘要。'
+            : 'Backtest summaries from web2 analysis and local runs.'
+        }
+        rows={dashboard.backtest_jobs as Array<Record<string, unknown>>}
+        onOpen={item => onOpenRecord(`Backtest ${String(item.job_id ?? 'job')}`, item)}
+      />
+    </div>
+  )
+}
+
+function SignalsFactoryView({
+  locale,
+  dashboard,
+  onOpenRecord,
+}: {
+  locale: LongclawLocale
+  dashboard: SignalsFactoryVM
+  onOpenRecord: (
+    title: string,
+    record: Record<string, unknown>,
+    actions?: LongclawOperatorAction[],
+  ) => void
+}) {
+  return (
+    <div style={packGridStyle}>
+      <RuntimeDiagnostics locale={locale} diagnostics={dashboard.diagnostics} />
+      <PackListSection
+        locale={locale}
+        title={t(locale, 'section.pack.signals.connector_health.title')}
+        subtitle={t(locale, 'section.pack.signals.connector_health.subtitle')}
+        rows={dashboard.connector_health as Array<Record<string, unknown>>}
+        onOpen={item =>
+          onOpenRecord(`Connector ${String(item.connector_id ?? 'record')}`, item)
+        }
+      />
+      <Section
+        title={locale === 'zh-CN' ? '深链入口' : 'Deep links'}
+        subtitle={
+          locale === 'zh-CN'
+            ? '完整能力仍通过状态和入口联动，不嵌入网页。'
+            : 'Full-fidelity escape hatches remain links, not embedded pages.'
+        }
+      >
+        <div style={denseListStyle}>
+          {dashboard.deep_links.length === 0 ? (
+            <div style={utilityStyles.emptyState}>
+              {locale === 'zh-CN' ? '当前没有可用深链。' : 'No deep links are available.'}
+            </div>
+          ) : (
+            dashboard.deep_links.map(link => (
+              <div key={link.link_id} style={surfaceStyles.listRow}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                  <div style={{ fontWeight: 600, color: palette.ink }}>{link.label}</div>
+                  <div style={chromeStyles.monoMeta}>{link.url}</div>
+                </div>
+                <button
+                  type="button"
+                  style={segmentedButtonStyle(false)}
+                  onClick={() =>
+                    onOpenRecord(link.label, link as unknown as Record<string, unknown>)
+                  }
+                >
+                  {locale === 'zh-CN' ? '查看' : 'Inspect'}
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </Section>
+    </div>
+  )
+}
+
 export function PackWorkspace({
   locale,
-  page,
+  surface,
   dashboard,
+  signalsWebBaseUrl,
   localizedNotice,
-  signalsPanel,
-  onChangeSignalsPanel,
   onRunAction,
   onOpenRun,
   onOpenRecord,
 }: PackWorkspaceProps) {
-  const isSignals = page === 'signals'
-  const normalizedDashboard = isSignals
-    ? normalizeSignalsDashboard(dashboard, locale)
-    : normalizeDueDashboard(dashboard, locale)
-  const headerTitle = isSignals ? t(locale, 'page.signals.title') : t(locale, 'page.rpa.title')
-  const headerSubtitle = isSignals
-    ? locale === 'zh-CN'
-      ? 'Signals 页面应该像 TradingView 一样围绕图表、观察列表、检查器和回测来组织。'
-      : 'Signals should feel like a TradingView-style terminal centered on charting, watchlists, inspectors, and backtests.'
-    : locale === 'zh-CN'
-      ? 'RPA 页面应该服务大模型推进流程、处理确认边界，并在失败时进入修复与交接。'
-      : 'RPA should help the model advance flows, handle confirmation boundaries, and move into repair or handoff when execution fails.'
+  const isExecutionSurface = surface === 'execution'
+  const normalizedDashboard = isExecutionSurface
+    ? normalizeDueDashboard(dashboard, locale)
+    : normalizeSignalsDashboard(dashboard, locale)
+  const headerTitle =
+    surface === 'strategy'
+      ? t(locale, 'page.strategy.title')
+      : surface === 'backtest'
+        ? t(locale, 'page.backtest.title')
+        : surface === 'factory'
+          ? t(locale, 'page.factory.title')
+          : t(locale, 'page.execution.title')
+  const headerSubtitle =
+    surface === 'strategy'
+      ? locale === 'zh-CN'
+        ? '策略页围绕 chart、观察列表、买卖点和轻量连接器摘要来组织。'
+        : 'Strategy is organized around charts, watchlists, signals, and a light connector summary.'
+      : surface === 'backtest'
+        ? locale === 'zh-CN'
+          ? '回测页只承接 web2 回测摘要、输入候选和作业列表。'
+          : 'Backtest only carries the web2 backlog, input queue, and backtest jobs.'
+        : surface === 'factory'
+          ? locale === 'zh-CN'
+            ? '工厂页承接连接器详情、运行诊断和能力底座。'
+            : 'Factory carries detailed connector diagnostics and capability substrate state.'
+          : locale === 'zh-CN'
+            ? '执行页服务 RPA 控制台、确认边界、失败修复与交接。'
+            : 'Execution serves the RPA console, confirmation boundaries, repair, and handoff.'
   const actions = normalizePackRows(
     ('operator_actions' in normalizedDashboard
       ? normalizedDashboard.operator_actions
       : []) as LongclawOperatorAction[],
   )
+
+  if (surface === 'strategy') {
+    return (
+      <div style={strategyPackShellStyle}>
+        {localizedNotice || normalizedDashboard.notice ? (
+          <div style={{ ...utilityStyles.warningBanner, margin: 10 }}>
+            {localizedNotice || normalizedDashboard.notice}
+          </div>
+        ) : null}
+        <SignalsStrategyView
+          locale={locale}
+          dashboard={toSignalsStrategyVM(normalizedDashboard as SignalsDashboard)}
+          signalsWebBaseUrl={signalsWebBaseUrl}
+          onOpenRun={onOpenRun}
+          onOpenRecord={onOpenRecord}
+        />
+      </div>
+    )
+  }
 
   return (
     <Section
@@ -889,20 +1161,32 @@ export function PackWorkspace({
           {localizedNotice || normalizedDashboard.notice}
         </div>
       ) : null}
-      {isSignals ? (
-        <SignalsPackView
-          locale={locale}
-          dashboard={normalizedDashboard as SignalsDashboard}
-          panel={signalsPanel}
-          onChangePanel={onChangeSignalsPanel}
-          onOpenRun={onOpenRun}
-          onOpenRecord={onOpenRecord}
-        />
-      ) : (
+      {surface === 'execution' ? (
         <DueDiligencePackView
           locale={locale}
           dashboard={normalizedDashboard as DueDiligenceDashboard}
           onOpenRun={onOpenRun}
+          onOpenRecord={onOpenRecord}
+        />
+      ) : surface === 'strategy' ? (
+        <SignalsStrategyView
+          locale={locale}
+          dashboard={toSignalsStrategyVM(normalizedDashboard as SignalsDashboard)}
+          signalsWebBaseUrl={signalsWebBaseUrl}
+          onOpenRun={onOpenRun}
+          onOpenRecord={onOpenRecord}
+        />
+      ) : surface === 'backtest' ? (
+        <SignalsBacktestView
+          locale={locale}
+          dashboard={toSignalsBacktestVM(normalizedDashboard as SignalsDashboard)}
+          onOpenRun={onOpenRun}
+          onOpenRecord={onOpenRecord}
+        />
+      ) : (
+        <SignalsFactoryView
+          locale={locale}
+          dashboard={toSignalsFactoryVM(normalizedDashboard as SignalsDashboard)}
           onOpenRecord={onOpenRecord}
         />
       )}

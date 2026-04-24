@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import type {
   LongclawRun,
   LongclawTask,
+  LongclawWorkItem,
 } from '../../../../src/services/longclawControlPlane/models.js'
 import {
   chromeStyles,
@@ -95,6 +96,12 @@ export type WeChatWorkspaceProps = {
   selectedSession: WeclawSessionDetail | null
   linkedTasks: LongclawTask[]
   linkedRuns: LongclawRun[]
+  linkedWorkItems: LongclawWorkItem[]
+  canonicalJumpContext?: {
+    canonicalSessionId?: string
+    canonicalUserId?: string
+    contextToken?: string
+  } | null
   selectionError?: string | null
   loadingSession?: boolean
   preview?: WeChatArtifactPreview | null
@@ -111,6 +118,7 @@ export type WeChatWorkspaceProps = {
   ) => void | Promise<void>
   onOpenLinkedTask: (task: LongclawTask) => void | Promise<void>
   onOpenLinkedRun: (run: LongclawRun) => void | Promise<void>
+  onOpenLinkedWorkItem: (workItem: LongclawWorkItem) => void | Promise<void>
   onOpenAttachment: (uri: string) => void | Promise<void>
 }
 
@@ -230,6 +238,10 @@ function inspectTaskLabel(locale: LongclawLocale): string {
 
 function inspectRunLabel(locale: LongclawLocale): string {
   return locale === 'zh-CN' ? '查看运行' : 'Inspect run'
+}
+
+function inspectWorkItemLabel(locale: LongclawLocale): string {
+  return locale === 'zh-CN' ? '查看待办' : 'Inspect work item'
 }
 
 function hideSessionLabel(locale: LongclawLocale, hidden: boolean): string {
@@ -383,18 +395,21 @@ function SessionDetail({
   selectedSession,
   linkedTasks,
   linkedRuns,
+  linkedWorkItems,
   preview,
   onClearSelection,
   onToggleHidden,
   onToggleArchived,
   onOpenLinkedTask,
   onOpenLinkedRun,
+  onOpenLinkedWorkItem,
   onOpenAttachment,
 }: {
   locale: LongclawLocale
   selectedSession: WeclawSessionDetail
   linkedTasks: LongclawTask[]
   linkedRuns: LongclawRun[]
+  linkedWorkItems: LongclawWorkItem[]
   preview?: WeChatArtifactPreview | null
   onClearSelection: () => void
   onToggleHidden: (
@@ -405,6 +420,7 @@ function SessionDetail({
   ) => void | Promise<void>
   onOpenLinkedTask: (task: LongclawTask) => void | Promise<void>
   onOpenLinkedRun: (run: LongclawRun) => void | Promise<void>
+  onOpenLinkedWorkItem: (workItem: LongclawWorkItem) => void | Promise<void>
   onOpenAttachment: (uri: string) => void | Promise<void>
 }) {
   const canonicalSession = canonicalSessionId(selectedSession)
@@ -509,7 +525,7 @@ function SessionDetail({
         </div>
       </section>
 
-      {(linkedTasks.length > 0 || linkedRuns.length > 0) && (
+      {(linkedTasks.length > 0 || linkedRuns.length > 0 || linkedWorkItems.length > 0) && (
         <Section
           title={t(locale, 'section.detail.weclaw_links.title')}
           subtitle={t(locale, 'section.detail.weclaw_links.subtitle')}
@@ -544,6 +560,23 @@ function SessionDetail({
                 nextAction={inspectRunLabel(locale)}
                 onSelect={() => {
                   void onOpenLinkedRun(run)
+                }}
+              />
+            ))}
+            {linkedWorkItems.map(workItem => (
+              <QueueRow
+                key={workItem.work_item_id}
+                locale={locale}
+                title={workItem.title}
+                meta={formatModeMeta([
+                  humanizeTokenLocale(locale, workItem.pack_id),
+                  humanizeTokenLocale(locale, workItem.kind),
+                ])}
+                status={workItem.severity}
+                description={workItem.summary}
+                nextAction={inspectWorkItemLabel(locale)}
+                onSelect={() => {
+                  void onOpenLinkedWorkItem(workItem)
                 }}
               />
             ))}
@@ -634,6 +667,7 @@ export function WeChatWorkspace({
   selectedSession,
   linkedTasks,
   linkedRuns,
+  linkedWorkItems,
   selectionError,
   loadingSession = false,
   preview,
@@ -646,6 +680,7 @@ export function WeChatWorkspace({
   onToggleArchived,
   onOpenLinkedTask,
   onOpenLinkedRun,
+  onOpenLinkedWorkItem,
   onOpenAttachment,
 }: WeChatWorkspaceProps) {
   const filteredSessions = useMemo(() => {
@@ -693,12 +728,14 @@ export function WeChatWorkspace({
         selectedSession={effectiveSelection}
         linkedTasks={linkedTasks}
         linkedRuns={linkedRuns}
+        linkedWorkItems={linkedWorkItems}
         preview={preview}
         onClearSelection={onClearSelection}
         onToggleHidden={onToggleHidden}
         onToggleArchived={onToggleArchived}
         onOpenLinkedTask={onOpenLinkedTask}
         onOpenLinkedRun={onOpenLinkedRun}
+        onOpenLinkedWorkItem={onOpenLinkedWorkItem}
         onOpenAttachment={onOpenAttachment}
       />
     )

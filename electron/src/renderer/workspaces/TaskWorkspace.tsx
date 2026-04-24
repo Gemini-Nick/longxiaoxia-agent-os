@@ -1,6 +1,7 @@
 import React from 'react'
 
 import {
+  buttonStyleForState,
   chromeStyles,
   palette,
   primaryButtonStyle,
@@ -68,6 +69,7 @@ export type TaskWorkspaceQueueItem = {
 }
 
 type AsyncHandler = () => void | Promise<void>
+type DisabledLaunchAttemptHandler = (reason?: string | null) => void | Promise<void>
 
 export type TaskWorkspaceProps = {
   locale: LongclawLocale
@@ -85,6 +87,7 @@ export type TaskWorkspaceProps = {
   onSubmitLaunch: AsyncHandler
   launchBusy?: boolean
   launchDisabled?: boolean
+  onDisabledLaunchAttempt?: DisabledLaunchAttemptHandler
   onClearDraft: () => void
   onResetRuntime: AsyncHandler
   resetRuntimeDisabled?: boolean
@@ -104,26 +107,55 @@ export type TaskWorkspaceProps = {
   onSelectPendingItem: (item: TaskWorkspaceQueueItem) => void
 }
 
-const FILTER_ORDER: TaskWorkspaceTaskFlowFilter[] = [
-  'all',
-  'running',
-  'pending',
-  'failed',
-  'completed',
-]
+export type GlobalLauncherProps = Pick<
+  TaskWorkspaceProps,
+  | 'locale'
+  | 'loading'
+  | 'onRefresh'
+  | 'contextItems'
+  | 'statusItems'
+  | 'workModeOptions'
+  | 'selectedWorkMode'
+  | 'onSelectWorkMode'
+  | 'selectedModeSpec'
+  | 'selectedModeNotice'
+  | 'launchInput'
+  | 'onLaunchInputChange'
+  | 'onSubmitLaunch'
+  | 'launchBusy'
+  | 'launchDisabled'
+  | 'onDisabledLaunchAttempt'
+  | 'onClearDraft'
+  | 'onResetRuntime'
+  | 'resetRuntimeDisabled'
+  | 'capabilitySuggestions'
+  | 'onUseCapability'
+  | 'localSeatPreference'
+  | 'localSeatPreferenceOptions'
+  | 'onSelectLocalSeatPreference'
+  | 'localSeatBannerMessage'
+>
 
-function buttonStyleForState(
-  base: React.CSSProperties,
-  disabled = false,
-): React.CSSProperties {
-  if (!disabled) return base
-  return {
-    ...base,
-    opacity: 0.54,
-    cursor: 'not-allowed',
-    boxShadow: 'none',
-  }
+export type ExecutionConsoleVM = {
+  taskFlowFilter: TaskWorkspaceTaskFlowFilter
+  taskFlowItems: TaskWorkspaceQueueItem[]
+  continueThreads: TaskWorkspaceQueueItem[]
+  pendingItems: TaskWorkspaceQueueItem[]
 }
+
+export type ExecutionConsoleProps = {
+  locale: LongclawLocale
+  taskFlowFilter: TaskWorkspaceTaskFlowFilter
+  onSelectTaskFlowFilter: (filter: TaskWorkspaceTaskFlowFilter) => void
+  taskFlowItems: TaskWorkspaceQueueItem[]
+  onOpenTaskFlowItem: (item: TaskWorkspaceQueueItem) => void
+  continueThreads: TaskWorkspaceQueueItem[]
+  onSelectContinueThread: (item: TaskWorkspaceQueueItem) => void
+  pendingItems: TaskWorkspaceQueueItem[]
+  onSelectPendingItem: (item: TaskWorkspaceQueueItem) => void
+}
+
+const FILTER_ORDER: TaskWorkspaceTaskFlowFilter[] = ['all', 'running', 'pending', 'failed', 'completed']
 
 function launcherTone(
   locale: LongclawLocale,
@@ -195,14 +227,354 @@ function deriveStatusItems(
   ]
 }
 
-function onComposerKeyDown(
+export function onComposerKeyDown(
   event: React.KeyboardEvent<HTMLTextAreaElement>,
-  onSubmitLaunch: AsyncHandler,
+  params: {
+    onSubmitLaunch: AsyncHandler
+    launchDisabled?: boolean
+    disabledReason?: string
+    onDisabledLaunchAttempt?: DisabledLaunchAttemptHandler
+  },
 ) {
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
     event.preventDefault()
-    void onSubmitLaunch()
+    if (params.launchDisabled) {
+      if (params.disabledReason?.trim()) {
+        void params.onDisabledLaunchAttempt?.(params.disabledReason)
+      }
+      return
+    }
+    void params.onSubmitLaunch()
   }
+}
+
+export function GlobalLauncher({
+  locale,
+  loading = false,
+  onRefresh,
+  contextItems,
+  statusItems,
+  workModeOptions,
+  selectedWorkMode,
+  onSelectWorkMode,
+  selectedModeSpec,
+  selectedModeNotice,
+  launchInput,
+  onLaunchInputChange,
+  onSubmitLaunch,
+  launchBusy = false,
+  launchDisabled = false,
+  onDisabledLaunchAttempt,
+  onClearDraft,
+  onResetRuntime,
+  resetRuntimeDisabled = false,
+  capabilitySuggestions,
+  onUseCapability,
+  localSeatPreference,
+  localSeatPreferenceOptions = [],
+  onSelectLocalSeatPreference,
+  localSeatBannerMessage,
+}: GlobalLauncherProps) {
+  const resolvedStatusItems = statusItems ?? []
+  const launchState = launcherTone(locale, selectedWorkMode, selectedModeNotice)
+  const visibleCapabilitySuggestions = capabilitySuggestions.slice(0, 4)
+  const compactContextItems = contextItems.slice(0, 2)
+  const launchDisabledReason = launchDisabled && selectedModeNotice ? selectedModeNotice : undefined
+
+  return (
+    <Section
+      title={t(locale, 'section.mode_launcher.title')}
+      subtitle={
+        locale === 'zh-CN'
+          ? '只保留处理方式、输入框和少量推荐路由。'
+          : 'Keep the launcher to mode selection, a prompt, and a few routing hints.'
+      }
+      actions={<span style={statusBadgeStyle(launchState.status)}>{launchState.label}</span>}
+    >
+      <div style={launcherSurfaceStyle}>
+        <div style={launcherContextStripStyle}>
+          {compactContextItems.map(item => (
+            <div key={item.id} style={launcherContextChipStyle}>
+              <div style={chromeStyles.eyebrowLight}>{item.label}</div>
+              <div style={launcherContextValueStyle}>{item.value}</div>
+              {item.meta && <div style={contextMetaStyle}>{item.meta}</div>}
+            </div>
+          ))}
+          <div style={launcherStatusStripStyle}>
+            <StatusStrip locale={locale} items={resolvedStatusItems} />
+          </div>
+        </div>
+
+        <div style={modeSwitchRowStyle}>
+          {workModeOptions.map(option => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={selectedWorkMode === option.value}
+              style={segmentedButtonStyle(selectedWorkMode === option.value)}
+              onClick={() => onSelectWorkMode(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={launcherSummaryLeadStyle}>
+          <div style={launcherSummaryTextStyle}>{selectedModeSpec.summary}</div>
+          <div style={chromeStyles.quietMeta}>
+            {[
+              selectedModeSpec.workspaceLabel,
+              selectedModeSpec.surfaceLabel,
+              selectedWorkMode === 'local' && localSeatPreference
+                ? localSeatPreferenceOptions.find(option => option.value === localSeatPreference)
+                    ?.label
+                : undefined,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
+        </div>
+
+        {selectedWorkMode === 'local' &&
+          localSeatPreference &&
+          localSeatPreferenceOptions.length > 0 &&
+          onSelectLocalSeatPreference && (
+            <div style={localSeatShellStyle}>
+              <div style={chromeStyles.quietMeta}>{t(locale, 'context.local_seat_strategy_desc')}</div>
+              <div style={utilityStyles.buttonCluster}>
+                {localSeatPreferenceOptions.map(option => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={localSeatPreference === option.value}
+                    style={segmentedButtonStyle(localSeatPreference === option.value)}
+                    onClick={() => onSelectLocalSeatPreference(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+        {localSeatBannerMessage && (
+          <div style={utilityStyles.noticeBanner}>{localSeatBannerMessage}</div>
+        )}
+
+        <textarea
+          value={launchInput}
+          placeholder={selectedModeSpec.placeholder}
+          style={composerTextareaStyle}
+          onChange={event => onLaunchInputChange(event.target.value)}
+          onKeyDown={event =>
+            onComposerKeyDown(event, {
+              onSubmitLaunch,
+              launchDisabled,
+              disabledReason: launchDisabledReason,
+              onDisabledLaunchAttempt,
+            })
+          }
+        />
+
+        {selectedModeNotice && <div style={utilityStyles.warningBanner}>{selectedModeNotice}</div>}
+
+        <div style={launcherFooterStyle}>
+          <div style={launcherHintsBlockStyle}>
+            <div style={chromeStyles.quietMeta}>
+              {selectedModeSpec.launchHint ?? selectedModeSpec.detail}
+            </div>
+            {visibleCapabilitySuggestions.length > 0 && (
+              <div style={launcherHintRowStyle}>
+                {visibleCapabilitySuggestions.map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    style={hintChipStyle}
+                    onClick={() => onUseCapability(item)}
+                    title={item.label ?? item.mention}
+                  >
+                    {item.mention}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={launcherActionsStyle}>
+            {launchDisabledReason && (
+              <div id="task-launch-disabled-reason" style={launchDisabledHintStyle}>
+                {launchDisabledReason}
+              </div>
+            )}
+            <div style={utilityStyles.buttonCluster}>
+              <button
+                type="button"
+                style={buttonStyleForState(
+                  secondaryButtonStyle,
+                  resetRuntimeDisabled,
+                  'secondary',
+                )}
+                disabled={resetRuntimeDisabled}
+                onClick={() => {
+                  void onResetRuntime()
+                }}
+              >
+                {t(locale, 'action.reset_runtime')}
+              </button>
+              <button type="button" style={secondaryButtonStyle} onClick={onClearDraft}>
+                {t(locale, 'action.clear_draft')}
+              </button>
+              <button
+                type="button"
+                style={buttonStyleForState(primaryButtonStyle, launchDisabled, 'primary')}
+                disabled={launchDisabled}
+                title={launchDisabledReason}
+                aria-describedby={
+                  launchDisabledReason ? 'task-launch-disabled-reason' : undefined
+                }
+                onClick={() => {
+                  void onSubmitLaunch()
+                }}
+              >
+                {launchBusy ? t(locale, 'action.launching') : selectedModeSpec.launchButtonLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style={pageHeaderActionsStyle}>
+          <button
+            type="button"
+            style={buttonStyleForState(secondaryButtonStyle, loading)}
+            disabled={loading}
+            onClick={() => {
+              void onRefresh()
+            }}
+          >
+            {loading ? t(locale, 'action.refreshing') : t(locale, 'action.refresh')}
+          </button>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+export function ExecutionConsole({
+  locale,
+  taskFlowFilter,
+  onSelectTaskFlowFilter,
+  taskFlowItems,
+  onOpenTaskFlowItem,
+  continueThreads,
+  onSelectContinueThread,
+  pendingItems,
+  onSelectPendingItem,
+}: ExecutionConsoleProps) {
+  const inboxEmpty = continueThreads.length === 0 && pendingItems.length === 0
+
+  return (
+    <div style={workspaceGridStyle}>
+      <div style={mainColumnStyle}>
+        <Section
+          title={t(locale, 'section.task_flow.title')}
+          subtitle={t(locale, 'section.task_flow.subtitle')}
+          actions={
+            <div style={utilityStyles.buttonCluster}>
+              {FILTER_ORDER.map(filter => (
+                <button
+                  key={filter}
+                  type="button"
+                  aria-pressed={taskFlowFilter === filter}
+                  style={segmentedButtonStyle(taskFlowFilter === filter)}
+                  onClick={() => onSelectTaskFlowFilter(filter)}
+                >
+                  {t(locale, `task_flow_filter.${filter}`)}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          <div style={utilityStyles.stackedList}>
+            {taskFlowItems.length === 0 ? (
+              <div style={utilityStyles.emptyState}>{t(locale, 'empty.no_task_flow')}</div>
+            ) : (
+              taskFlowItems.slice(0, 16).map(item => (
+                <QueueRow
+                  key={item.id}
+                  locale={locale}
+                  title={item.title}
+                  meta={item.meta}
+                  status={item.status}
+                  description={item.description}
+                  nextAction={item.nextActionLabel ?? t(locale, 'action.inspect_launch')}
+                  onSelect={() => onOpenTaskFlowItem(item)}
+                />
+              ))
+            )}
+          </div>
+        </Section>
+      </div>
+
+      <aside style={railColumnStyle}>
+        <Section
+          title={locale === 'zh-CN' ? '任务收件箱' : 'Task inbox'}
+          subtitle={
+            locale === 'zh-CN'
+              ? '把继续中的任务和需要处理的事项放在一处。'
+              : 'Keep resumable threads and action-required items in one place.'
+          }
+        >
+          <div style={utilityStyles.stackedList}>
+            {inboxEmpty ? (
+              <div style={utilityStyles.emptyState}>
+                {locale === 'zh-CN'
+                  ? '当前没有需要继续或处理的任务。'
+                  : 'There are no resumable or action-required tasks right now.'}
+              </div>
+            ) : (
+              <>
+                {continueThreads.length > 0 && (
+                  <div style={inboxGroupStyle}>
+                    <div style={inboxGroupLabelStyle}>{t(locale, 'section.continue_threads.title')}</div>
+                    {continueThreads.slice(0, 4).map(item => (
+                      <QueueRow
+                        key={item.id}
+                        locale={locale}
+                        title={item.title}
+                        meta={item.meta}
+                        status={item.status}
+                        description={item.description}
+                        nextAction={item.nextActionLabel ?? t(locale, 'action.switch_context')}
+                        active={item.active}
+                        onSelect={() => onSelectContinueThread(item)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {pendingItems.length > 0 && (
+                  <div style={inboxGroupStyle}>
+                    <div style={inboxGroupLabelStyle}>{t(locale, 'section.pending_actions.title')}</div>
+                    {pendingItems.slice(0, 4).map(item => (
+                      <QueueRow
+                        key={item.id}
+                        locale={locale}
+                        title={item.title}
+                        meta={item.meta}
+                        status={item.status}
+                        description={item.description}
+                        nextAction={item.nextActionLabel ?? t(locale, 'action.inspect_launch')}
+                        onSelect={() => onSelectPendingItem(item)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </Section>
+      </aside>
+    </div>
+  )
 }
 
 export function TaskWorkspace({
@@ -221,6 +593,7 @@ export function TaskWorkspace({
   onSubmitLaunch,
   launchBusy = false,
   launchDisabled = false,
+  onDisabledLaunchAttempt,
   onClearDraft,
   onResetRuntime,
   resetRuntimeDisabled = false,
@@ -245,6 +618,7 @@ export function TaskWorkspace({
   const visibleCapabilitySuggestions = capabilitySuggestions.slice(0, 4)
   const compactContextItems = contextItems.slice(0, 2)
   const inboxEmpty = continueThreads.length === 0 && pendingItems.length === 0
+  const launchDisabledReason = launchDisabled && selectedModeNotice ? selectedModeNotice : undefined
 
   return (
     <div style={pageStackStyle}>
@@ -357,7 +731,14 @@ export function TaskWorkspace({
                 placeholder={selectedModeSpec.placeholder}
                 style={composerTextareaStyle}
                 onChange={event => onLaunchInputChange(event.target.value)}
-                onKeyDown={event => onComposerKeyDown(event, onSubmitLaunch)}
+                onKeyDown={event =>
+                  onComposerKeyDown(event, {
+                    onSubmitLaunch,
+                    launchDisabled,
+                    disabledReason: launchDisabledReason,
+                    onDisabledLaunchAttempt,
+                  })
+                }
               />
 
               {selectedModeNotice && <div style={utilityStyles.warningBanner}>{selectedModeNotice}</div>}
@@ -386,30 +767,39 @@ export function TaskWorkspace({
                   )}
                 </div>
 
-                <div style={utilityStyles.buttonCluster}>
-                  <button
-                    type="button"
-                    style={buttonStyleForState(secondaryButtonStyle, resetRuntimeDisabled)}
-                    disabled={resetRuntimeDisabled}
-                    onClick={() => {
-                      void onResetRuntime()
-                    }}
-                  >
-                    {t(locale, 'action.reset_runtime')}
-                  </button>
-                  <button type="button" style={secondaryButtonStyle} onClick={onClearDraft}>
-                    {t(locale, 'action.clear_draft')}
-                  </button>
-                  <button
-                    type="button"
-                    style={buttonStyleForState(primaryButtonStyle, launchDisabled)}
-                    disabled={launchDisabled}
-                    onClick={() => {
-                      void onSubmitLaunch()
-                    }}
-                  >
-                    {launchBusy ? t(locale, 'action.launching') : selectedModeSpec.launchButtonLabel}
-                  </button>
+                <div style={launcherActionsStyle}>
+                  {launchDisabledReason && (
+                    <div id="task-launch-disabled-reason" style={launchDisabledHintStyle}>
+                      {launchDisabledReason}
+                    </div>
+                  )}
+                  <div style={utilityStyles.buttonCluster}>
+                    <button
+                      type="button"
+                      style={buttonStyleForState(secondaryButtonStyle, resetRuntimeDisabled, 'secondary')}
+                      disabled={resetRuntimeDisabled}
+                      onClick={() => {
+                        void onResetRuntime()
+                      }}
+                    >
+                      {t(locale, 'action.reset_runtime')}
+                    </button>
+                    <button type="button" style={secondaryButtonStyle} onClick={onClearDraft}>
+                      {t(locale, 'action.clear_draft')}
+                    </button>
+                    <button
+                      type="button"
+                      style={buttonStyleForState(primaryButtonStyle, launchDisabled, 'primary')}
+                      disabled={launchDisabled}
+                      title={launchDisabledReason}
+                      aria-describedby={launchDisabledReason ? 'task-launch-disabled-reason' : undefined}
+                      onClick={() => {
+                        void onSubmitLaunch()
+                      }}
+                    >
+                      {launchBusy ? t(locale, 'action.launching') : selectedModeSpec.launchButtonLabel}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -669,6 +1059,26 @@ const launcherHintsBlockStyle: React.CSSProperties = {
   flexDirection: 'column',
   gap: 8,
   minWidth: 0,
+}
+
+const launcherActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  alignItems: 'flex-end',
+  maxWidth: '100%',
+}
+
+const launchDisabledHintStyle: React.CSSProperties = {
+  maxWidth: 360,
+  padding: '8px 10px',
+  borderRadius: 12,
+  background: 'rgba(199, 146, 47, 0.1)',
+  border: '1px solid rgba(199, 146, 47, 0.18)',
+  color: palette.warning,
+  fontSize: 12,
+  lineHeight: 1.45,
+  textAlign: 'right',
 }
 
 const launcherHintRowStyle: React.CSSProperties = {

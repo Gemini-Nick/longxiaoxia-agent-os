@@ -14,11 +14,11 @@ import type {
   LongclawWorkItem,
 } from '../../../src/services/longclawControlPlane/models.js'
 import {
+  buttonStyleForState,
   chromeStyles,
   humanizeToken,
   navButtonStyle,
   palette,
-  primaryButtonStyle,
   secondaryButtonStyle,
   segmentedButtonStyle,
   statusBadgeStyle,
@@ -34,19 +34,25 @@ import {
   StatusStrip,
 } from './workspaces/shared.js'
 import { PackWorkspace } from './workspaces/PackWorkspace.js'
-import TaskWorkspace from './workspaces/TaskWorkspace.js'
+import { ExecutionConsole } from './workspaces/TaskWorkspace.js'
 import WeChatWorkspace from './workspaces/WeChatWorkspace.js'
 import CapabilitiesWorkspace from './workspaces/CapabilitiesWorkspace.js'
 
-type Page = 'wechat' | 'tasks' | 'capabilities' | 'rpa' | 'signals'
+export type SurfaceId = 'strategy' | 'backtest' | 'execution' | 'wechat' | 'factory'
+type Page = SurfaceId
 type PackTab = 'due_diligence' | 'signals'
-type WorkMode = 'local' | 'cloud_sandbox' | 'weclaw_dispatch'
-type LocalRuntimeSeatPreference = 'auto' | 'force_acp' | 'force_local_runtime_api'
+export type WorkMode = 'local' | 'cloud_sandbox' | 'weclaw_dispatch'
+export type LocalRuntimeSeatPreference = 'auto' | 'force_acp' | 'force_local_runtime_api'
 type TaskFlowFilter = 'all' | 'running' | 'pending' | 'failed' | 'completed'
 type WeclawSessionVisibilityFilter = 'active' | 'hidden' | 'archived'
 type WeclawSessionSourceFilter = 'all' | 'wechat' | 'weclaw'
-type SignalsPanel = 'overview' | 'chart' | 'review' | 'backtest' | 'connectors'
-type NavItemSpec = { id: Page; label: string; glyph: string; title: string }
+type NavItemSpec = {
+  id: Page
+  label: string
+  glyph: string
+  title: string
+  group: 'primary' | 'secondary'
+}
 type SkillInfo = { name: string; path: string; description: string; project?: string }
 type AgentModeInfo = { mode: string; alive: boolean }
 type WeclawSessionAttachment = {
@@ -143,6 +149,12 @@ type ThreadSummary = {
   localRuntimeSeat?: string
   itemCount: number
 }
+type WeclawExecutionJumpContext = {
+  canonicalSessionId?: string
+  canonicalUserId?: string
+  contextToken?: string
+  sessionTitle?: string
+}
 type ConversationEvent =
   | {
       id: string
@@ -210,7 +222,7 @@ type SidebarStatusItem = {
   meta?: string
   status: string
 }
-type RuntimeStatusSummary = {
+export type RuntimeStatusSummary = {
   longclawCoreConnected: boolean
   longclawCoreBaseUrl?: string
   dueDiligenceConnected: boolean
@@ -500,26 +512,26 @@ function severityRank(value: string): number {
 
 function pageTitle(locale: LongclawLocale, page: Page): string {
   if (page === 'wechat') return t(locale, 'page.wechat.title')
-  if (page === 'tasks') return t(locale, 'page.tasks.title')
-  if (page === 'capabilities') return t(locale, 'page.capabilities.title')
-  if (page === 'rpa') return t(locale, 'page.rpa.title')
-  return t(locale, 'page.signals.title')
+  if (page === 'factory') return t(locale, 'page.factory.title')
+  if (page === 'execution') return t(locale, 'page.execution.title')
+  if (page === 'backtest') return t(locale, 'page.backtest.title')
+  return t(locale, 'page.strategy.title')
 }
 
 function pageEyebrow(locale: LongclawLocale, page: Page): string {
   if (page === 'wechat') return t(locale, 'page.wechat.eyebrow')
-  if (page === 'tasks') return t(locale, 'page.tasks.eyebrow')
-  if (page === 'capabilities') return t(locale, 'page.capabilities.eyebrow')
-  if (page === 'rpa') return t(locale, 'page.rpa.eyebrow')
-  return t(locale, 'page.signals.eyebrow')
+  if (page === 'factory') return t(locale, 'page.factory.eyebrow')
+  if (page === 'execution') return t(locale, 'page.execution.eyebrow')
+  if (page === 'backtest') return t(locale, 'page.backtest.eyebrow')
+  return t(locale, 'page.strategy.eyebrow')
 }
 
 function pageDescription(locale: LongclawLocale, page: Page): string {
   if (page === 'wechat') return t(locale, 'page.wechat.description')
-  if (page === 'tasks') return t(locale, 'page.tasks.description')
-  if (page === 'capabilities') return t(locale, 'page.capabilities.description')
-  if (page === 'rpa') return t(locale, 'page.rpa.description')
-  return t(locale, 'page.signals.description')
+  if (page === 'factory') return t(locale, 'page.factory.description')
+  if (page === 'execution') return t(locale, 'page.execution.description')
+  if (page === 'backtest') return t(locale, 'page.backtest.description')
+  return t(locale, 'page.strategy.description')
 }
 
 function normalizeLocalRuntimeSeatPreference(
@@ -649,6 +661,21 @@ function weclawContextToken(
     stringValue(session?.canonicalMetadata.context_token) ??
     stringValue(session?.canonicalMetadata.contextToken)
   )
+}
+
+function buildWeclawJumpContext(
+  session:
+    | Pick<WeclawSessionSummary, 'title' | 'canonicalMetadata' | 'canonicalSessionId'>
+    | null
+    | undefined,
+): WeclawExecutionJumpContext | null {
+  if (!session) return null
+  return {
+    canonicalSessionId: weclawCanonicalSessionId(session),
+    canonicalUserId: weclawCanonicalUserId(session),
+    contextToken: weclawContextToken(session),
+    sessionTitle: stringValue(session.title),
+  }
 }
 
 function weclawAttachmentUri(attachment: WeclawSessionAttachment): string | undefined {
@@ -816,7 +843,7 @@ function effectiveRuntimeProfile(
   return 'dev_local_acp_bridge'
 }
 
-function effectiveLocalRuntimeSeat(
+export function effectiveLocalRuntimeSeat(
   runtimeStatus: RuntimeStatusSummary,
   localSeatPreference: LocalRuntimeSeatPreference,
 ): string {
@@ -957,7 +984,7 @@ function taskFlowFilterForWorkItem(item: LongclawWorkItem): TaskFlowFilter {
   return 'pending'
 }
 
-function workModeAvailabilityNotice(
+export function workModeAvailabilityNotice(
   locale: LongclawLocale,
   workMode: WorkMode,
   runtimeStatus: RuntimeStatusSummary,
@@ -977,6 +1004,58 @@ function workModeAvailabilityNotice(
     return t(locale, 'notice.weclaw_unavailable')
   }
   return undefined
+}
+
+export function launchDisabledState(
+  launchBusy: boolean,
+  launchInput: string,
+  selectedModeNotice?: string | null,
+): { disabled: boolean; disabledReason?: string } {
+  const disabled = launchBusy || launchInput.trim().length === 0 || Boolean(selectedModeNotice)
+  return {
+    disabled,
+    disabledReason: disabled && selectedModeNotice ? selectedModeNotice : undefined,
+  }
+}
+
+function looksLikeTransportFailure(message: string): boolean {
+  return /fetch failed|ECONNREFUSED|EHOSTUNREACH|ENOTFOUND|ETIMEDOUT|network error/i.test(message)
+}
+
+export function formatLaunchFailureMessage(
+  locale: LongclawLocale,
+  error: unknown,
+  runtimeStatus: RuntimeStatusSummary,
+  workMode: WorkMode,
+): string {
+  const rawMessage = error instanceof Error ? error.message : String(error)
+  const stackEnvPath = runtimeStatus.stackEnvPath?.trim() || '~/.longclaw/runtime-v2/stack.env'
+  const controlPlaneBaseUrl = runtimeStatus.longclawCoreBaseUrl?.trim()
+  const missingControlPlaneConfig = /Launch requires Hermes Agent OS/i.test(rawMessage)
+
+  if (!missingControlPlaneConfig && !looksLikeTransportFailure(rawMessage)) {
+    return rawMessage
+  }
+
+  if (locale === 'zh-CN') {
+    const modeHint =
+      workMode === 'local'
+        ? '当前本机处理仍会先经过 Longclaw Core 建立 task。'
+        : '当前模式依赖 Longclaw Core。'
+    if (controlPlaneBaseUrl) {
+      return `Longclaw Core 当前不可达：${controlPlaneBaseUrl}。${modeHint}请先启动 Hermes Agent OS，或检查 ${stackEnvPath} 里的 LONGCLAW_AGENT_OS_BASE_URL。原始错误：${rawMessage}`
+    }
+    return `Longclaw Core 尚未配置。${modeHint}请检查 ${stackEnvPath} 里的 LONGCLAW_AGENT_OS_BASE_URL 或 LONGCLAW_HERMES_AGENT_OS_BASE_URL。原始错误：${rawMessage}`
+  }
+
+  const modeHint =
+    workMode === 'local'
+      ? 'Local handling still goes through Longclaw Core to create the task first.'
+      : 'This mode depends on Longclaw Core.'
+  if (controlPlaneBaseUrl) {
+    return `Longclaw Core is unreachable at ${controlPlaneBaseUrl}. ${modeHint} Start Hermes Agent OS, or check LONGCLAW_AGENT_OS_BASE_URL in ${stackEnvPath}. Raw error: ${rawMessage}`
+  }
+  return `Longclaw Core is not configured. ${modeHint} Check LONGCLAW_AGENT_OS_BASE_URL or LONGCLAW_HERMES_AGENT_OS_BASE_URL in ${stackEnvPath}. Raw error: ${rawMessage}`
 }
 
 function workModeAvailabilityState(
@@ -1688,8 +1767,7 @@ function CapabilityChip({
 }
 
 export default function App() {
-  const [page, setPage] = useState<Page>('tasks')
-  const [packTab, setPackTab] = useState<PackTab>('due_diligence')
+  const [page, setPage] = useState<Page>('strategy')
   const [overview, setOverview] = useState<LongclawControlPlaneOverview | null>(null)
   const [runs, setRuns] = useState<LongclawRun[]>([])
   const [workItems, setWorkItems] = useState<LongclawWorkItem[]>([])
@@ -1742,12 +1820,13 @@ export default function App() {
   const [launches, setLaunches] = useState<LaunchRecord[]>([])
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
   const [selectedWeclawSessionId, setSelectedWeclawSessionId] = useState<string | null>(null)
+  const [executionJumpContext, setExecutionJumpContext] =
+    useState<WeclawExecutionJumpContext | null>(null)
   const [wechatSearch, setWechatSearch] = useState('')
   const [wechatSourceFilter, setWechatSourceFilter] =
     useState<WeclawSessionSourceFilter>('all')
   const [wechatVisibilityFilter, setWechatVisibilityFilter] =
     useState<WeclawSessionVisibilityFilter>('active')
-  const [signalsPanel, setSignalsPanel] = useState<SignalsPanel>('chart')
   const [extraSkillRootDraft, setExtraSkillRootDraft] = useState('')
   const [extraPluginRootDraft, setExtraPluginRootDraft] = useState('')
   const [managedSkillPathDraft, setManagedSkillPathDraft] = useState('')
@@ -1760,6 +1839,7 @@ export default function App() {
     () => createShellLayout(viewportWidth, viewportTier, threadSidebarOpen, Boolean(selected)),
     [selected, threadSidebarOpen, viewportTier, viewportWidth],
   )
+  const isStrategyTerminalPage = page === 'strategy'
   const runtimeStatus = useMemo(
     () => runtimeStatusFromSummary(substrateSummary),
     [substrateSummary],
@@ -1894,7 +1974,7 @@ export default function App() {
     }
   }, [])
 
-  const loadCapabilitySubstrate = useCallback(async () => {
+  const loadCapabilitySubstrate = useCallback(async (): Promise<RuntimeStatusSummary | null> => {
     const [summaryResult, modeResult, cwdResult, skillsResult, settingsResult, registryResult] =
       await Promise.allSettled([
         window.longclawCapabilitySubstrate.getSummary(),
@@ -1904,8 +1984,10 @@ export default function App() {
         window.longclawCapabilityManager.getSettings(),
         window.longclawCapabilityManager.getRegistry(),
       ])
+    let nextRuntimeStatus: RuntimeStatusSummary | null = null
 
     if (summaryResult.status === 'fulfilled') {
+      nextRuntimeStatus = runtimeStatusFromSummary(summaryResult.value)
       setSubstrateSummary(summaryResult.value)
       setCapabilityManagerSettings(capabilityManagerSettingsFromSummary(summaryResult.value))
       setSkills(
@@ -1939,6 +2021,7 @@ export default function App() {
       const cwd = summaryResult.value.metadata.cwd
       if (typeof cwd === 'string') setAgentCwd(cwd)
     }
+    return nextRuntimeStatus
   }, [])
 
   useEffect(() => {
@@ -2037,17 +2120,24 @@ export default function App() {
   }, [loadCapabilitySubstrate])
 
   const refresh = useCallback(
-    async (targetPage: Page = page, targetPack: PackTab = packTab) => {
+    async (targetPage: Page = page) => {
       setLoading(true)
       setError(null)
-      const resolvedPack =
-        targetPage === 'signals'
-          ? 'signals'
-          : targetPage === 'rpa'
-            ? 'due_diligence'
-            : targetPack
-      if (targetPage === 'tasks') {
+      if (targetPage === 'strategy') {
         await Promise.allSettled([
+          loadDashboard('signals'),
+          loadRuns(),
+          loadWorkItems(),
+          loadLaunchTasks(),
+          loadCapabilitySubstrate(),
+        ])
+      }
+      if (targetPage === 'backtest') {
+        await Promise.allSettled([loadDashboard('signals'), loadCapabilitySubstrate()])
+      }
+      if (targetPage === 'execution') {
+        await Promise.allSettled([
+          loadDashboard('due_diligence'),
           loadOverview(),
           loadRuns(),
           loadWorkItems(),
@@ -2059,16 +2149,19 @@ export default function App() {
         await Promise.allSettled([
           loadRuns(),
           loadLaunchTasks(),
+          loadWorkItems(),
           loadWeclawSessions(),
           loadWeclawSessionSourceStatus(),
           loadCapabilitySubstrate(),
         ])
       }
-      if (targetPage === 'capabilities') {
-        await Promise.allSettled([loadOverview(), loadLaunchTasks(), loadCapabilitySubstrate()])
-      }
-      if (targetPage === 'rpa' || targetPage === 'signals') {
-        await Promise.allSettled([loadDashboard(resolvedPack), loadCapabilitySubstrate()])
+      if (targetPage === 'factory') {
+        await Promise.allSettled([
+          loadOverview(),
+          loadLaunchTasks(),
+          loadCapabilitySubstrate(),
+          loadDashboard('signals'),
+        ])
       }
       setLoading(false)
     },
@@ -2082,21 +2175,20 @@ export default function App() {
       loadWeclawSessions,
       loadWorkItems,
       page,
-      packTab,
     ],
   )
 
   useEffect(() => {
-    void refresh(page, packTab)
-  }, [page, packTab, refresh])
+    void refresh(page)
+  }, [page, refresh])
 
   useEffect(() => {
-    const intervalMs = page === 'tasks' ? 10_000 : 15_000
+    const intervalMs = page === 'strategy' || page === 'execution' ? 10_000 : 15_000
     const timer = window.setInterval(() => {
-      void refresh(page, packTab)
+      void refresh(page)
     }, intervalMs)
     return () => window.clearInterval(timer)
-  }, [page, packTab, refresh])
+  }, [page, refresh])
 
   const openRun = useCallback(async (run: LongclawRun) => {
     setSelected({
@@ -2182,12 +2274,12 @@ export default function App() {
             await openRun(runResult.run)
           }
         }
-        await refresh(page, packTab)
+        await refresh(page)
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       }
     },
-    [openRun, page, packTab, refresh, runtimeStatus.longclawCoreConnected],
+    [openRun, page, refresh, runtimeStatus.longclawCoreConnected],
   )
 
   const openArtifact = useCallback(async (uri: string) => {
@@ -2219,17 +2311,38 @@ export default function App() {
 
   const selectedWeclawLinkedRecords = useMemo(() => {
     if (selected?.type !== 'weclaw_session') {
-      return { tasks: [] as LongclawTask[], runs: [] as LongclawRun[] }
+      return {
+        tasks: [] as LongclawTask[],
+        runs: [] as LongclawRun[],
+        workItems: [] as LongclawWorkItem[],
+      }
     }
     const canonicalSessionId = weclawCanonicalSessionId(selected.session)
     if (!canonicalSessionId) {
-      return { tasks: [] as LongclawTask[], runs: [] as LongclawRun[] }
+      return {
+        tasks: [] as LongclawTask[],
+        runs: [] as LongclawRun[],
+        workItems: [] as LongclawWorkItem[],
+      }
     }
     return {
-      tasks: launchTasks.filter(task => recordSessionId(task as unknown as Record<string, unknown>) === canonicalSessionId).slice(0, 3),
-      runs: runs.filter(run => recordSessionId(run as unknown as Record<string, unknown>) === canonicalSessionId).slice(0, 3),
+      tasks: launchTasks
+        .filter(
+          task => recordSessionId(task as unknown as Record<string, unknown>) === canonicalSessionId,
+        )
+        .slice(0, 3),
+      runs: runs
+        .filter(
+          run => recordSessionId(run as unknown as Record<string, unknown>) === canonicalSessionId,
+        )
+        .slice(0, 3),
+      workItems: workItems
+        .filter(
+          item => recordSessionId(item as unknown as Record<string, unknown>) === canonicalSessionId,
+        )
+        .slice(0, 3),
     }
-  }, [launchTasks, runs, selected])
+  }, [launchTasks, runs, selected, workItems])
 
   const priorityWorkItems = useMemo(
     () =>
@@ -2354,7 +2467,11 @@ export default function App() {
         : null,
     [localSeatPreference, locale, runtimeStatus, selectedWorkMode],
   )
-  const launchDisabled = launchBusy || launchInput.trim().length === 0 || Boolean(selectedModeNotice)
+  const { disabled: launchDisabled } = launchDisabledState(
+    launchBusy,
+    launchInput,
+    selectedModeNotice,
+  )
   const resetRuntimeDisabled =
     effectiveLocalRuntimeSeat(runtimeStatus, localSeatPreference) === 'unavailable'
 
@@ -2521,22 +2638,47 @@ export default function App() {
     () => {
       const items: Array<Omit<NavItemSpec, 'title'>> = [
         {
+          id: 'strategy',
+          label: t(locale, 'nav.strategy'),
+          glyph: locale === 'zh-CN' ? '策' : 'S',
+          group: 'primary',
+        },
+        {
+          id: 'backtest',
+          label: t(locale, 'nav.backtest'),
+          glyph: locale === 'zh-CN' ? '测' : 'B',
+          group: 'primary',
+        },
+        {
+          id: 'execution',
+          label: t(locale, 'nav.execution'),
+          glyph: locale === 'zh-CN' ? '执' : 'E',
+          group: 'primary',
+        },
+        {
           id: 'wechat',
           label: t(locale, 'nav.wechat'),
           glyph: locale === 'zh-CN' ? '微' : 'W',
+          group: 'secondary',
         },
-        { id: 'tasks', label: t(locale, 'nav.tasks'), glyph: locale === 'zh-CN' ? '任' : 'T' },
         {
-          id: 'capabilities',
-          label: t(locale, 'nav.capabilities'),
-          glyph: locale === 'zh-CN' ? '扩' : 'E',
+          id: 'factory',
+          label: t(locale, 'nav.factory'),
+          glyph: locale === 'zh-CN' ? '厂' : 'F',
+          group: 'secondary',
         },
-        { id: 'rpa', label: t(locale, 'nav.rpa'), glyph: 'R' },
-        { id: 'signals', label: t(locale, 'nav.signals'), glyph: 'S' },
       ]
       return items.map(item => ({ ...item, title: item.label }))
     },
     [locale],
+  )
+  const primaryNavItems = useMemo(
+    () => navItems.filter(item => item.group === 'primary'),
+    [navItems],
+  )
+  const secondaryNavItems = useMemo(
+    () => navItems.filter(item => item.group === 'secondary'),
+    [navItems],
   )
   const homeRecentThreads = threadSummaries.slice(0, 4)
   const homePendingItems = priorityWorkItems.slice(0, 4)
@@ -2636,9 +2778,16 @@ export default function App() {
     }
   }, [filteredWeclawSessions.length, page, selected])
 
+  useEffect(() => {
+    if (page === 'execution') return
+    if (executionJumpContext) {
+      setExecutionJumpContext(null)
+    }
+  }, [executionJumpContext, page])
+
   const useCapability = useCallback((item: CapabilityItem) => {
     setLaunchInput(previous => withMention(previous, item.mention))
-    setPage('tasks')
+    setPage('strategy')
   }, [])
 
   const openLaunchRecord = useCallback(
@@ -2651,11 +2800,6 @@ export default function App() {
     [locale, openRecord],
   )
 
-  const openPackWorkspace = useCallback((packId: PackTab) => {
-    setPackTab(packId)
-    setPage(packId === 'signals' ? 'signals' : 'rpa')
-  }, [])
-
   const openConversationEvent = useCallback(
     (event: ConversationEvent) => {
       if (event.type === 'user_launch') {
@@ -2663,6 +2807,7 @@ export default function App() {
         return
       }
       if (event.type === 'task_receipt') {
+        setPage('execution')
         openRecord(
           event.title,
           event.task as unknown as Record<string, unknown>,
@@ -2670,9 +2815,11 @@ export default function App() {
         return
       }
       if (event.type === 'run_receipt') {
+        setPage('execution')
         void openRun(event.run)
         return
       }
+      setPage('execution')
       openWorkItem(event.workItem)
     },
     [openLaunchRecord, openRecord, openRun, openWorkItem],
@@ -2893,20 +3040,42 @@ export default function App() {
     }
   }, [loadCapabilitySubstrate, locale, runtimeStatus.localRuntimeAvailable])
 
+  const refreshTaskLaunchReadiness = useCallback(async () => {
+    const refreshedRuntimeStatus = await loadCapabilitySubstrate()
+    return refreshedRuntimeStatus ?? runtimeStatus
+  }, [loadCapabilitySubstrate, runtimeStatus])
+
+  const handleSelectTaskWorkMode = useCallback(
+    (mode: WorkMode) => {
+      workModeTouchedRef.current = true
+      setSelectedWorkMode(mode)
+      void loadCapabilitySubstrate()
+    },
+    [loadCapabilitySubstrate],
+  )
+
   const submitLaunch = useCallback(async () => {
     const prompt = launchInput.trim()
     if (!prompt || launchBusy) return
-    if (selectedModeNotice) {
-      setActionMessage(selectedModeNotice)
+    const selectedMode = selectedWorkMode
+    const refreshedRuntimeStatus = await refreshTaskLaunchReadiness()
+    const refreshedModeNotice = workModeAvailabilityNotice(
+      locale,
+      selectedMode,
+      refreshedRuntimeStatus,
+      localSeatPreference,
+    )
+    if (refreshedModeNotice) {
+      setError(null)
+      setActionMessage(refreshedModeNotice)
       return
     }
 
     const tempLaunchId = `launch-${Date.now()}`
-    const selectedMode = selectedWorkMode
     const selectedSpec = localizedWorkModeSpec(locale, selectedMode)
     const runtimeProfile = effectiveRuntimeProfile(
       selectedMode,
-      runtimeStatus,
+      refreshedRuntimeStatus,
       localSeatPreference,
     )
     activeLaunchIdRef.current = tempLaunchId
@@ -2931,7 +3100,7 @@ export default function App() {
           model_plane: selectedSpec.modelPlane,
           local_runtime_seat:
             selectedMode === 'local'
-              ? effectiveLocalRuntimeSeat(runtimeStatus, localSeatPreference)
+              ? effectiveLocalRuntimeSeat(refreshedRuntimeStatus, localSeatPreference)
               : 'unavailable',
           execution_plane:
             selectedSpec.runtimeTarget === 'cloud_runtime' ? 'cloud_executor' : 'local_executor',
@@ -2951,7 +3120,7 @@ export default function App() {
           prompt,
           agentCwd,
           selectedMode,
-          runtimeStatus,
+          refreshedRuntimeStatus,
           localSeatPreference,
         ),
       )
@@ -2995,7 +3164,13 @@ export default function App() {
     } catch (err) {
       activeLaunchIdRef.current = null
       setLaunchBusy(false)
-      const message = err instanceof Error ? err.message : String(err)
+      const message = formatLaunchFailureMessage(
+        locale,
+        err,
+        refreshedRuntimeStatus,
+        selectedMode,
+      )
+      setActionMessage(null)
       setError(message)
       setLaunches(previous =>
         patchLaunchRecord(previous, tempLaunchId, record => ({
@@ -3015,10 +3190,9 @@ export default function App() {
     loadOverview,
     loadWorkItems,
     localSeatPreference,
-    selectedModeNotice,
     selectedWorkMode,
     locale,
-    runtimeStatus,
+    refreshTaskLaunchReadiness,
   ])
 
   const pageHeading = pageTitle(locale, page)
@@ -3179,11 +3353,30 @@ export default function App() {
     setSelected(null)
     setSelectedWeclawSessionId(null)
   }, [])
+  const jumpContext = selected?.type === 'weclaw_session' ? buildWeclawJumpContext(selected.session) : null
   const openWeclawLinkedTask = useCallback(
     (task: LongclawTask) => {
+      setExecutionJumpContext(jumpContext)
+      setPage('execution')
       openRecord(t(locale, 'section.detail.weclaw_links.task'), task as unknown as Record<string, unknown>)
     },
-    [locale, openRecord],
+    [jumpContext, locale, openRecord],
+  )
+  const openWeclawLinkedRun = useCallback(
+    (run: LongclawRun) => {
+      setExecutionJumpContext(jumpContext)
+      setPage('execution')
+      void openRun(run)
+    },
+    [jumpContext, openRun],
+  )
+  const openWeclawLinkedWorkItem = useCallback(
+    (workItem: LongclawWorkItem) => {
+      setExecutionJumpContext(jumpContext)
+      setPage('execution')
+      openWorkItem(workItem)
+    },
+    [jumpContext, openWorkItem],
   )
 
   return (
@@ -3195,7 +3388,7 @@ export default function App() {
         </div>
 
         <nav aria-label="Primary navigation" style={railNavStyle}>
-          {navItems.map(item => (
+          {primaryNavItems.map(item => (
             <button
               key={item.id}
               type="button"
@@ -3208,6 +3401,26 @@ export default function App() {
             </button>
           ))}
         </nav>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={chromeStyles.eyebrowLight}>
+            {locale === 'zh-CN' ? '固定工具区' : 'Fixed tools'}
+          </div>
+          <nav aria-label="Secondary navigation" style={railNavStyle}>
+            {secondaryNavItems.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                title={item.title}
+                style={railNavButtonStyle(page === item.id)}
+                onClick={() => setPage(item.id)}
+              >
+                <span style={railNavButtonGlyphStyle(page === item.id)}>{item.glyph}</span>
+                <span style={railNavButtonLabelStyle}>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
 
         {viewportTier === 'narrow' && (
           <button
@@ -3234,7 +3447,13 @@ export default function App() {
         />
       )}
 
-      <aside style={shellLayout.threadSidebar}>
+      <aside
+        style={
+          isStrategyTerminalPage
+            ? { ...shellLayout.threadSidebar, display: 'none' }
+            : shellLayout.threadSidebar
+        }
+      >
         <div style={threadSidebarSectionStyle}>
           <div style={threadSidebarSectionHeaderStyle}>
             <div>
@@ -3248,7 +3467,7 @@ export default function App() {
               style={buttonStyleForState(secondaryButtonStyle, loading)}
               disabled={loading}
               onClick={() => {
-                void refresh(page, packTab)
+                void refresh(page)
               }}
             >
               {loading ? t(locale, 'action.refreshing') : t(locale, 'action.refresh')}
@@ -3314,11 +3533,11 @@ export default function App() {
             </>
           )}
 
-          {page === 'capabilities' && (
+          {page === 'factory' && (
             <>
               <div style={threadSidebarSectionHeaderStyle}>
                 <div>
-                  <div style={chromeStyles.eyebrowLight}>{t(locale, 'nav.capabilities')}</div>
+                  <div style={chromeStyles.eyebrowLight}>{t(locale, 'nav.factory')}</div>
                   <div style={threadSidebarHeadingStyle}>{t(locale, 'sidebar.capability_groups')}</div>
                 </div>
                 <span style={statusBadgeStyle(disabledCapabilityCount > 0 ? 'degraded' : 'open')}>
@@ -3346,11 +3565,11 @@ export default function App() {
             </>
           )}
 
-          {page === 'rpa' && (
+          {page === 'execution' && (
             <>
               <div style={threadSidebarSectionHeaderStyle}>
                 <div>
-                  <div style={chromeStyles.eyebrowLight}>{t(locale, 'nav.rpa')}</div>
+                  <div style={chromeStyles.eyebrowLight}>{t(locale, 'nav.execution')}</div>
                   <div style={threadSidebarHeadingStyle}>{t(locale, 'sidebar.rpa_flows')}</div>
                 </div>
                 <span style={statusBadgeStyle(runtimeStatus.dueDiligenceConnected ? 'open' : 'degraded')}>
@@ -3384,11 +3603,13 @@ export default function App() {
             </>
           )}
 
-          {page === 'signals' && (
+          {(page === 'strategy' || page === 'backtest') && (
             <>
               <div style={threadSidebarSectionHeaderStyle}>
                 <div>
-                  <div style={chromeStyles.eyebrowLight}>{t(locale, 'nav.signals')}</div>
+                  <div style={chromeStyles.eyebrowLight}>
+                    {page === 'strategy' ? t(locale, 'nav.strategy') : t(locale, 'nav.backtest')}
+                  </div>
                   <div style={threadSidebarHeadingStyle}>{t(locale, 'sidebar.signals_connectors')}</div>
                 </div>
                 <span style={statusBadgeStyle(runtimeStatus.signalsAvailable ? 'open' : 'degraded')}>
@@ -3451,57 +3672,14 @@ export default function App() {
             </div>
           )}
 
-          {page === 'tasks' ? (
-            <div style={workspaceScrollStyle}>
-              <TaskWorkspace
-                locale={locale}
-                loading={loading}
-                onRefresh={() => refresh(page, packTab)}
-                contextItems={taskWorkspaceContextItems}
-                statusItems={taskWorkspaceStatusItems}
-                workModeOptions={taskWorkspaceWorkModeOptions}
-                selectedWorkMode={selectedWorkMode}
-                onSelectWorkMode={mode => {
-                  workModeTouchedRef.current = true
-                  setSelectedWorkMode(mode)
-                }}
-                selectedModeSpec={selectedModeSpec}
-                selectedModeNotice={selectedModeNotice}
-                launchInput={launchInput}
-                onLaunchInputChange={setLaunchInput}
-                onSubmitLaunch={submitLaunch}
-                launchBusy={launchBusy}
-                launchDisabled={launchDisabled}
-                onClearDraft={() => setLaunchInput('')}
-                onResetRuntime={resetCoworkRuntime}
-                resetRuntimeDisabled={resetRuntimeDisabled}
-                capabilitySuggestions={taskWorkspaceCapabilitySuggestions}
-                onUseCapability={item => setLaunchInput(previous => withMention(previous, item.mention))}
-                localSeatPreference={localSeatPreference}
-                localSeatPreferenceOptions={taskWorkspaceLocalSeatOptions}
-                onSelectLocalSeatPreference={setLocalSeatPreference}
-                localSeatBannerMessage={localSeatBannerMessage}
-                taskFlowFilter={taskFlowFilter}
-                onSelectTaskFlowFilter={setTaskFlowFilter}
-                taskFlowItems={taskWorkspaceTaskFlowItems}
-                onOpenTaskFlowItem={item => {
-                  const nextItem = filteredTaskFlowItems.find(candidate => candidate.id === item.id)
-                  if (nextItem) openTaskFlowItem(nextItem)
-                }}
-                continueThreads={taskWorkspaceContinueThreads}
-                onSelectContinueThread={item => {
-                  setSelectedThreadId(item.id)
-                  if (viewportTier === 'narrow') setThreadSidebarOpen(true)
-                }}
-                pendingItems={taskWorkspacePendingItems}
-                onSelectPendingItem={item => {
-                  const nextItem = homePendingItems.find(candidate => candidate.work_item_id === item.id)
-                  if (nextItem) openWorkItem(nextItem)
-                }}
-              />
-            </div>
-          ) : (
-            <div style={workspaceScrollStyle}>
+          <div
+            style={
+              isStrategyTerminalPage
+                ? strategyWorkspaceScrollStyle
+                : workspaceScrollStyle
+            }
+          >
+            {!isStrategyTerminalPage && (
               <div style={pageHeaderShellStyle}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={chromeStyles.eyebrow}>{pageEyebrow(locale, page)}</div>
@@ -3514,12 +3692,12 @@ export default function App() {
                     style={buttonStyleForState(secondaryButtonStyle, loading)}
                     disabled={loading}
                     onClick={() => {
-                      void refresh(page, packTab)
+                      void refresh(page)
                     }}
                   >
                     {loading ? t(locale, 'action.refreshing') : t(locale, 'action.refresh')}
                   </button>
-                  {page === 'capabilities' && (
+                  {page === 'factory' && (
                     <>
                       <button
                         type="button"
@@ -3539,63 +3717,162 @@ export default function App() {
                   )}
                 </div>
               </div>
+            )}
 
-              <div style={pageStackStyle}>
-                {page === 'wechat' && (
-                  <WeChatWorkspace
-                    locale={locale}
-                    viewportTier={viewportTier}
-                    sessions={weclawSessions}
-                    sourceStatus={weclawSessionSourceStatus}
-                    search={wechatSearch}
-                    sourceFilter={wechatSourceFilter}
-                    visibilityFilter={wechatVisibilityFilter}
-                    selectedSessionId={selectedWeclawSessionId}
-                    selectedSession={selectedWeclawSession}
-                    linkedTasks={selectedWeclawLinkedRecords.tasks}
-                    linkedRuns={selectedWeclawLinkedRecords.runs}
-                    preview={preview}
-                    onSearchChange={setWechatSearch}
-                    onSourceFilterChange={setWechatSourceFilter}
-                    onVisibilityFilterChange={setWechatVisibilityFilter}
-                    onSelectSession={session => {
-                      setSelectedWeclawSessionId(session.sessionId)
-                      void openWeclawSession(session.sessionId)
-                    }}
-                    onClearSelection={clearWeclawSelection}
-                    onToggleHidden={session =>
-                      updateWeclawSessionState(session, {
-                        hidden: !session.hidden,
-                        archived: false,
-                      })
-                    }
-                    onToggleArchived={session =>
-                      updateWeclawSessionState(session, {
-                        archived: !session.archived,
-                        hidden: false,
-                      })
-                    }
-                    onOpenLinkedTask={openWeclawLinkedTask}
-                    onOpenLinkedRun={openRun}
-                    onOpenAttachment={openArtifact}
-                  />
-                )}
+            <div style={isStrategyTerminalPage ? strategyPageStackStyle : pageStackStyle}>
+              {page === 'strategy' && (
+                <PackWorkspace
+                  locale={locale}
+                  surface="strategy"
+                  dashboard={dashboard}
+                  signalsWebBaseUrl={runtimeStatus.signalsWebBaseUrl}
+                  localizedNotice={localizedDashboardNotice}
+                  onRunAction={runAction}
+                  onOpenRun={openRun}
+                  onOpenRecord={openRecord}
+                />
+              )}
 
-                {(page === 'rpa' || page === 'signals') && (
+              {page === 'backtest' && (
+                <PackWorkspace
+                  locale={locale}
+                  surface="backtest"
+                  dashboard={dashboard}
+                  signalsWebBaseUrl={runtimeStatus.signalsWebBaseUrl}
+                  localizedNotice={localizedDashboardNotice}
+                  onRunAction={runAction}
+                  onOpenRun={openRun}
+                  onOpenRecord={openRecord}
+                />
+              )}
+
+              {page === 'execution' && (
+                <>
+                  {executionJumpContext &&
+                    (executionJumpContext.canonicalSessionId ||
+                      executionJumpContext.canonicalUserId ||
+                      executionJumpContext.contextToken) && (
+                      <Section
+                        title={locale === 'zh-CN' ? '微信跳转上下文' : 'WeChat jump context'}
+                        subtitle={
+                          executionJumpContext.sessionTitle ||
+                          (locale === 'zh-CN'
+                            ? '从微信会话进入执行治理页时保留 canonical 锚点。'
+                            : 'Preserve the canonical anchor when jumping from WeChat into execution.')
+                        }
+                      >
+                        <div style={utilityStyles.stackedList}>
+                          {executionJumpContext.canonicalSessionId && (
+                            <div style={surfaceStyles.listRow}>
+                              <div style={chromeStyles.quietMeta}>
+                                {t(locale, 'label.canonical_session')}
+                              </div>
+                              <div style={chromeStyles.monoMeta}>
+                                {executionJumpContext.canonicalSessionId}
+                              </div>
+                            </div>
+                          )}
+                          {executionJumpContext.canonicalUserId && (
+                            <div style={surfaceStyles.listRow}>
+                              <div style={chromeStyles.quietMeta}>
+                                {t(locale, 'label.canonical_user')}
+                              </div>
+                              <div style={chromeStyles.monoMeta}>
+                                {executionJumpContext.canonicalUserId}
+                              </div>
+                            </div>
+                          )}
+                          {executionJumpContext.contextToken && (
+                            <div style={surfaceStyles.listRow}>
+                              <div style={chromeStyles.quietMeta}>
+                                {t(locale, 'label.context_token')}
+                              </div>
+                              <div style={chromeStyles.monoMeta}>
+                                {executionJumpContext.contextToken}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </Section>
+                    )}
                   <PackWorkspace
                     locale={locale}
-                    page={page}
+                    surface="execution"
                     dashboard={dashboard}
+                    signalsWebBaseUrl={runtimeStatus.signalsWebBaseUrl}
                     localizedNotice={localizedDashboardNotice}
-                    signalsPanel={signalsPanel}
-                    onChangeSignalsPanel={setSignalsPanel}
                     onRunAction={runAction}
                     onOpenRun={openRun}
                     onOpenRecord={openRecord}
                   />
-                )}
+                  <ExecutionConsole
+                    locale={locale}
+                    taskFlowFilter={taskFlowFilter}
+                    onSelectTaskFlowFilter={setTaskFlowFilter}
+                    taskFlowItems={taskWorkspaceTaskFlowItems}
+                    onOpenTaskFlowItem={item => {
+                      const nextItem = filteredTaskFlowItems.find(candidate => candidate.id === item.id)
+                      if (nextItem) openTaskFlowItem(nextItem)
+                    }}
+                    continueThreads={taskWorkspaceContinueThreads}
+                    onSelectContinueThread={item => {
+                      setSelectedThreadId(item.id)
+                      if (viewportTier === 'narrow') setThreadSidebarOpen(true)
+                    }}
+                    pendingItems={taskWorkspacePendingItems}
+                    onSelectPendingItem={item => {
+                      const nextItem = homePendingItems.find(candidate => candidate.work_item_id === item.id)
+                      if (nextItem) openWorkItem(nextItem)
+                    }}
+                  />
+                </>
+              )}
 
-                {page === 'capabilities' && (
+              {page === 'wechat' && (
+                <WeChatWorkspace
+                  locale={locale}
+                  viewportTier={viewportTier}
+                  sessions={weclawSessions}
+                  sourceStatus={weclawSessionSourceStatus}
+                  search={wechatSearch}
+                  sourceFilter={wechatSourceFilter}
+                  visibilityFilter={wechatVisibilityFilter}
+                  selectedSessionId={selectedWeclawSessionId}
+                  selectedSession={selectedWeclawSession}
+                  linkedTasks={selectedWeclawLinkedRecords.tasks}
+                  linkedRuns={selectedWeclawLinkedRecords.runs}
+                  linkedWorkItems={selectedWeclawLinkedRecords.workItems}
+                  canonicalJumpContext={jumpContext}
+                  preview={preview}
+                  onSearchChange={setWechatSearch}
+                  onSourceFilterChange={setWechatSourceFilter}
+                  onVisibilityFilterChange={setWechatVisibilityFilter}
+                  onSelectSession={session => {
+                    setSelectedWeclawSessionId(session.sessionId)
+                    void openWeclawSession(session.sessionId)
+                  }}
+                  onClearSelection={clearWeclawSelection}
+                  onToggleHidden={session =>
+                    updateWeclawSessionState(session, {
+                      hidden: !session.hidden,
+                      archived: false,
+                    })
+                  }
+                  onToggleArchived={session =>
+                    updateWeclawSessionState(session, {
+                      archived: !session.archived,
+                      hidden: false,
+                    })
+                  }
+                  onOpenLinkedTask={openWeclawLinkedTask}
+                  onOpenLinkedRun={openWeclawLinkedRun}
+                  onOpenLinkedWorkItem={openWeclawLinkedWorkItem}
+                  onOpenAttachment={openArtifact}
+                />
+              )}
+
+              {page === 'factory' && (
+                <>
                   <CapabilitiesWorkspace
                     locale={locale}
                     capabilitySummaryItems={capabilitySummaryItems}
@@ -3633,11 +3910,22 @@ export default function App() {
                     addDiscoveryRoot={addDiscoveryRoot}
                     removeDiscoveryRoot={removeDiscoveryRoot}
                   />
-                )}
-              </div>
+                  <PackWorkspace
+                    locale={locale}
+                    surface="factory"
+                    dashboard={dashboard}
+                    signalsWebBaseUrl={runtimeStatus.signalsWebBaseUrl}
+                    localizedNotice={localizedDashboardNotice}
+                    onRunAction={runAction}
+                    onOpenRun={openRun}
+                    onOpenRecord={openRecord}
+                  />
+                </>
+              )}
             </div>
-          )}
+          </div>
 
+          {!isStrategyTerminalPage && (
           <aside aria-label={t(locale, 'section.detail.drawer')} style={shellLayout.detailPane}>
             {selected ? (
               <div style={pageStackStyle}>
@@ -4016,7 +4304,8 @@ export default function App() {
                     </Section>
 
                     {(selectedWeclawLinkedRecords.tasks.length > 0 ||
-                      selectedWeclawLinkedRecords.runs.length > 0) && (
+                      selectedWeclawLinkedRecords.runs.length > 0 ||
+                      selectedWeclawLinkedRecords.workItems.length > 0) && (
                       <Section
                         title={t(locale, 'section.detail.weclaw_links.title')}
                         subtitle={t(locale, 'section.detail.weclaw_links.subtitle')}
@@ -4055,6 +4344,21 @@ export default function App() {
                               onSelect={() => {
                                 void openRun(run)
                               }}
+                            />
+                          ))}
+                          {selectedWeclawLinkedRecords.workItems.map(workItem => (
+                            <QueueRow
+                              key={workItem.work_item_id}
+                              locale={locale}
+                              title={workItem.title}
+                              meta={formatModeMeta([
+                                humanizeTokenLocale(locale, workItem.pack_id),
+                                humanizeTokenLocale(locale, workItem.kind),
+                              ])}
+                              status={workItem.severity}
+                              description={workItem.summary}
+                              nextAction={t(locale, 'action.inspect_launch')}
+                              onSelect={() => openWorkItem(workItem)}
                             />
                           ))}
                         </div>
@@ -4135,6 +4439,7 @@ export default function App() {
               <div style={utilityStyles.emptyState}>{t(locale, 'empty.select_detail')}</div>
             )}
           </aside>
+          )}
         </div>
       </main>
     </div>
@@ -4145,6 +4450,13 @@ const pageStackStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 12,
+}
+
+const strategyPageStackStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  height: '100%',
+  minHeight: 0,
 }
 
 const weclawMessageCardStyle: React.CSSProperties = {
@@ -4640,6 +4952,14 @@ const workspaceScrollStyle: React.CSSProperties = {
   padding: '22px 24px 24px',
 }
 
+const strategyWorkspaceScrollStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflow: 'hidden',
+  padding: 0,
+  background: '#0B1118',
+}
+
 const pageHeaderShellStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
@@ -4817,19 +5137,6 @@ function capabilityChipStyle(kind: CapabilityItem['kind']): React.CSSProperties 
     color: palette.ink,
     cursor: 'pointer',
     textAlign: 'left',
-  }
-}
-
-function buttonStyleForState(
-  base: React.CSSProperties,
-  disabled = false,
-): React.CSSProperties {
-  if (!disabled) return base
-  return {
-    ...base,
-    opacity: 0.54,
-    cursor: 'not-allowed',
-    boxShadow: 'none',
   }
 }
 

@@ -180,6 +180,38 @@ export const secondaryButtonStyle: CSSProperties = {
   fontWeight: 500,
 }
 
+export type ButtonTone = 'primary' | 'secondary'
+
+export function buttonStyleForState(
+  base: CSSProperties,
+  disabled = false,
+  tone: ButtonTone = 'secondary',
+): CSSProperties {
+  if (!disabled) return base
+
+  if (tone === 'primary') {
+    return {
+      ...base,
+      border: `1px solid ${palette.borderStrong}`,
+      background: palette.stone,
+      color: palette.textMuted,
+      cursor: 'not-allowed',
+      boxShadow: 'none',
+      opacity: 1,
+    }
+  }
+
+  return {
+    ...base,
+    border: `1px solid ${palette.border}`,
+    background: palette.panel,
+    color: palette.textSoft,
+    cursor: 'not-allowed',
+    boxShadow: 'none',
+    opacity: 1,
+  }
+}
+
 export const chromeStyles = {
   brand: {
     fontFamily: fontStacks.display,
