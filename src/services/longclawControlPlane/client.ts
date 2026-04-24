@@ -562,6 +562,8 @@ export class LongclawControlPlaneClient {
     return defaultPacks({
       dueDiligenceBaseUrl: this.dueDiligenceBaseUrl,
       signalsStateRoot: this.signalsStateRoot,
+      signalsWebBaseUrl: this.signalsWebBaseUrl,
+      signalsWeb2BaseUrl: this.signalsWeb2BaseUrl,
     })
   }
 
@@ -971,6 +973,13 @@ export class LongclawControlPlaneClient {
           ],
         })
       }
+
+      const canonicalDashboard = await fetchJsonOrNull(
+        web1 ? `${web1}/api/pack/dashboard` : undefined,
+        value => SignalsDashboardSchema.parse(value),
+        this.fetchImpl,
+      )
+      if (canonicalDashboard) return canonicalDashboard
 
       try {
         const runs = await this.listRuns()

@@ -449,6 +449,58 @@ describe('LongclawControlPlaneClient simulated WeClaw to client flow', () => {
     expect(dashboard.notice).toContain('unreachable:http://due.local')
   })
 
+  it('prefers the canonical Signals pack dashboard when web1 exposes it', async () => {
+    const requests: string[] = []
+    const fetchImpl: typeof fetch = async input => {
+      const url = String(input)
+      requests.push(url)
+
+      if (url === 'http://signals-web.local/api/pack/dashboard') {
+        return new Response(
+          JSON.stringify({
+            pack_id: 'signals',
+            title: 'Signals',
+            status: 'healthy',
+            notice: '',
+            overview: {
+              market_regime: {},
+              cluster_summary: {
+                industry_top: [{ label: '半导体', change_pct: 2.3 }],
+              },
+              review_summary: {},
+              data_warning: '',
+            },
+            backtest_summary: { total: 3, evaluated: 2, pending: 1 },
+            connector_health: [
+              {
+                connector_id: 'signals-pack',
+                status: 'available',
+                summary: 'canonical dashboard',
+                details: {},
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+
+      throw new Error(`Unexpected request: ${url}`)
+    }
+
+    const client = new LongclawControlPlaneClient({
+      signalsWebBaseUrl: 'http://signals-web.local',
+      signalsWeb2BaseUrl: 'http://signals-web2.local',
+      fetchImpl,
+    })
+
+    const dashboard = await client.getPackDashboard('signals')
+
+    expect(dashboard.pack_id).toBe('signals')
+    expect(dashboard.backtest_summary.pending).toBe(1)
+    expect(dashboard.connector_health[0]?.connector_id).toBe('signals-pack')
+    expect(requests).toEqual(['http://signals-web.local/api/pack/dashboard'])
+  })
+
   it('synthesizes a mixed web1+web2 Signals dashboard with native panels populated', async () => {
     const signalsStateRoot = makeTempDir('signals-state-')
     fs.mkdirSync(path.join(signalsStateRoot, 'runs'), { recursive: true })
