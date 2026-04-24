@@ -45,6 +45,7 @@
     "guardian:rollback": "bash scripts/guardian/rollback-v2.sh",
     "electron:dev": "npm run build:electron && ELECTRON_DEV=1 npx electron electron/dist/main.cjs",
     "electron:start": "npm run build:electron && npx electron electron/dist/main.cjs",
+    "electron:observe": "bash scripts/start_observed_electron.sh",
     "observation:create": "python3 scripts/product_observation.py create",
     "observation:finalize": "python3 scripts/product_observation.py finalize --write-mempalace",
     "observation:seed-strategy-bug": "python3 scripts/product_observation.py seed-strategy-frequency-persistence --write-mempalace",

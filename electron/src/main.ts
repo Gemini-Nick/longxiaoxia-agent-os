@@ -309,6 +309,22 @@ function compactObservationValue(value: unknown): unknown {
   return String(value)
 }
 
+function classifyRendererConsoleMessage(
+  level: number,
+  message: string,
+): { level: 'info' | 'warning' | 'error'; category?: string; dev_only?: boolean } {
+  if (message.includes('Electron Security Warning')) {
+    return {
+      level: 'warning',
+      category: 'electron-security-warning',
+      dev_only: true,
+    }
+  }
+  if (level >= 2) return { level: 'error' }
+  if (level === 1) return { level: 'warning' }
+  return { level: 'info' }
+}
+
 function appendObservationJsonl(
   filePath: string,
   counter: 'events' | 'api_timings',
@@ -456,11 +472,12 @@ function createWindow() {
   mainWindow.webContents.on(
     'console-message',
     (_event, level, message, line, sourceId) => {
-      log('renderer console', { level, message, line, sourceId })
+      const classification = classifyRendererConsoleMessage(level, message)
+      log('renderer console', { level, message, line, sourceId, classification })
       appendObservationJsonl(observationEventsPath, 'events', {
         source: 'renderer-console',
         name: 'console-message',
-        level: level >= 2 ? 'error' : 'info',
+        ...classification,
         console_level: level,
         message,
         line,

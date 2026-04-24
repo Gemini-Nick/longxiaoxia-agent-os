@@ -206,8 +206,39 @@ def enrich_observation(
     requested_failed = len(summary["requested_failed"])
     refresh_after = len(summary["refresh_after_action"])
     action = summary["action"]
+    event_names = {str(row.get("name") or "") for row in events}
+    failed_api_count = len([row for row in api_rows if row.get("ok") is False])
+    error_event_count = len([row for row in events if row.get("level") == "error" or row.get("ok") is False])
 
     if "strategy" not in scenario:
+        if any(name.startswith("observe.") for name in event_names):
+            launched = "observe.electron.launch" in event_names
+            no_launch = "observe.electron.no_launch" in event_names
+            attached = len([row for row in events if row.get("name") == "observe.signals.attach"])
+            fill_if_missing(
+                observation,
+                "expected",
+                "观察 wrapper 使用一个 canonical run_id/run_dir，复用已有 Signals 端口，并把 Electron/renderer/API 证据写入同一目录。",
+            )
+            observation["actual"] = (
+                f"wrapper 已生成 observation；Signals attach 事件数={attached}；"
+                f"electron_launched={launched}；no_launch={no_launch}；"
+                f"error_events={error_event_count}；failed_api={failed_api_count}。"
+            )
+            fill_if_missing(
+                observation,
+                "initial_diagnosis",
+                (
+                    "观察链路问题来自启动步骤分散：手动命令会重复启动 Signals 或误开 Electron 默认应用。"
+                    "wrapper 把创建报告、端口检测、build、Electron 启动和环境变量注入收敛到同一路径。"
+                ),
+            )
+            fill_if_missing(
+                observation,
+                "next_steps",
+                "把回测 daily/weekly analyze 纳入同一个 wrapper 观察，继续记录慢请求、500、空状态和 UI 降级。",
+            )
+            observation["status"] = "verified" if error_event_count == 0 and failed_api_count == 0 else "needs_followup"
         return
 
     fill_if_missing(
@@ -488,7 +519,8 @@ def write_mempalace(run_dir: Path, observation: Dict[str, Any]) -> List[str]:
     wing = sanitize_name("longclaw_product", "wing")
     room = sanitize_name("observation_diary", "room")
     run_id = str(observation.get("run_id"))
-    drawer_id = f"drawer_{wing}_{room}_{hashlib.sha256(body.encode()).hexdigest()[:24]}"
+    run_hash = hashlib.sha256(run_id.encode()).hexdigest()[:24]
+    drawer_id = f"drawer_{wing}_{room}_{run_hash}"
     collection.upsert(
         ids=[drawer_id],
         documents=[body],
@@ -512,8 +544,8 @@ def write_mempalace(run_dir: Path, observation: Dict[str, Any]) -> List[str]:
         f"归因: {observation.get('initial_diagnosis')}. "
         f"Report: {markdown_path}"
     )
-    diary_id = f"diary_longclaw_product_{timestamp_slug()}_{hashlib.sha256(diary_entry.encode()).hexdigest()[:12]}"
-    collection.add(
+    diary_id = f"diary_longclaw_product_{run_hash}"
+    collection.upsert(
         ids=[diary_id],
         documents=[diary_entry],
         metadatas=[{
@@ -559,8 +591,7 @@ def finalize(args: argparse.Namespace) -> Path:
         write_report(run_dir, observation)
         refs = write_mempalace(run_dir, observation)
         if refs:
-            existing = observation.get("memory_refs") or []
-            observation["memory_refs"] = sorted(set(list(existing) + refs))
+            observation["memory_refs"] = sorted(set(refs))
     write_report(run_dir, observation)
     print(str(run_dir))
     return run_dir
