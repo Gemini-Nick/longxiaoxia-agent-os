@@ -35,7 +35,6 @@ type PackWorkspaceProps = {
   surface: PackSurface
   dashboard: LongclawPackDashboard | null
   signalsWebBaseUrl?: string
-  signalsWeb2BaseUrl?: string
   localizedNotice?: string | null
   onRunAction: (action: LongclawOperatorAction) => Promise<void>
   onOpenRun: (run: LongclawRun) => Promise<void>
@@ -68,13 +67,6 @@ const denseListStyle: React.CSSProperties = {
 const statCardStyle: React.CSSProperties = {
   ...surfaceStyles.listRow,
   alignItems: 'center',
-}
-
-const agenticSummaryStyle: React.CSSProperties = {
-  ...surfaceStyles.mutedSection,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 10,
 }
 
 const terminalWorkbenchStyle: React.CSSProperties = {
@@ -303,20 +295,6 @@ function DueDiligencePackView({
             },
           ]}
         />
-        <div style={{ ...denseListStyle, marginTop: 12 }}>
-          <div style={agenticSummaryStyle}>
-            <div style={{ fontWeight: 600, color: palette.ink }}>
-              {locale === 'zh-CN'
-                ? '先让模型推进，再把需要确认、修复或接管的边界暴露出来。'
-                : 'Let the model push the flow forward first, then surface only the boundaries that need confirmation, repair, or takeover.'}
-            </div>
-            <div style={chromeStyles.quietMeta}>
-              {locale === 'zh-CN'
-                ? '因此这里的主视图应该是 runbook、handoff 和 retry，而不是孤立告警。'
-                : 'That makes the primary view a runbook, handoff queue, and retry surface instead of isolated alerts.'}
-            </div>
-          </div>
-        </div>
       </Section>
       <RuntimeDiagnostics locale={locale} diagnostics={dashboard.diagnostics} />
       <PackListSection
@@ -408,17 +386,17 @@ function SignalsPackView({
 }) {
   const chartContext = dashboard.chart_context
   const panels: Array<{ id: SignalsPanel; label: string }> = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'chart', label: 'Chart' },
-    { id: 'review', label: 'Review' },
-    { id: 'backtest', label: 'Backtest' },
-    { id: 'connectors', label: 'Connectors' },
+    { id: 'overview', label: locale === 'zh-CN' ? '概览' : 'Overview' },
+    { id: 'chart', label: locale === 'zh-CN' ? '图表' : 'Chart' },
+    { id: 'review', label: locale === 'zh-CN' ? '复核' : 'Review' },
+    { id: 'backtest', label: locale === 'zh-CN' ? '回测' : 'Backtest' },
+    { id: 'connectors', label: locale === 'zh-CN' ? '连接器' : 'Connectors' },
   ]
 
   return (
     <div style={packGridStyle}>
       <Section
-        title={locale === 'zh-CN' ? 'Signals Terminal' : 'Signals Terminal'}
+        title={locale === 'zh-CN' ? '策略终端' : 'Signals Terminal'}
         subtitle={
           locale === 'zh-CN'
             ? '按 TradingView 的工作台心智来组织观察、图表、review 和回测，但仍然坚持状态驱动原生渲染。'
@@ -534,7 +512,14 @@ function SignalsPackView({
                 : 'Merged candidates from review and prediction.'
             }
             rows={dashboard.buy_candidates as Array<Record<string, unknown>>}
-            onOpen={item => onOpenRecord(`Buy ${String(item.symbol ?? 'candidate')}`, item)}
+          onOpen={item =>
+            onOpenRecord(
+              locale === 'zh-CN'
+                ? `买入 ${String(item.symbol ?? '候选')}`
+                : `Buy ${String(item.symbol ?? 'candidate')}`,
+              item,
+            )
+          }
           />
           <PackListSection
             locale={locale}
@@ -545,7 +530,14 @@ function SignalsPackView({
                 : 'Expose the highest-risk exit warnings first.'
             }
             rows={dashboard.sell_warnings as Array<Record<string, unknown>>}
-            onOpen={item => onOpenRecord(`Sell ${String(item.symbol ?? 'warning')}`, item)}
+            onOpen={item =>
+              onOpenRecord(
+                locale === 'zh-CN'
+                  ? `卖出 ${String(item.symbol ?? '预警')}`
+                  : `Sell ${String(item.symbol ?? 'warning')}`,
+                item,
+              )
+            }
           />
         </>
       )}
@@ -562,7 +554,14 @@ function SignalsPackView({
                   : 'Start with the live candidate flow, similar to a TradingView watchlist.'
               }
               rows={dashboard.buy_candidates as Array<Record<string, unknown>>}
-              onOpen={item => onOpenRecord(`Buy ${String(item.symbol ?? 'candidate')}`, item)}
+              onOpen={item =>
+                onOpenRecord(
+                  locale === 'zh-CN'
+                    ? `买入 ${String(item.symbol ?? '候选')}`
+                    : `Buy ${String(item.symbol ?? 'candidate')}`,
+                  item,
+                )
+              }
             />
             <PackListSection
               locale={locale}
@@ -573,7 +572,14 @@ function SignalsPackView({
                   : 'Keep high-risk exit signals in the same watch column.'
               }
               rows={dashboard.sell_warnings as Array<Record<string, unknown>>}
-              onOpen={item => onOpenRecord(`Sell ${String(item.symbol ?? 'warning')}`, item)}
+              onOpen={item =>
+                onOpenRecord(
+                  locale === 'zh-CN'
+                    ? `卖出 ${String(item.symbol ?? '预警')}`
+                    : `Sell ${String(item.symbol ?? 'warning')}`,
+                  item,
+                )
+              }
             />
           </div>
 
@@ -800,11 +806,18 @@ function SignalsPackView({
             title={locale === 'zh-CN' ? '回测作业' : 'Backtest jobs'}
             subtitle={
               locale === 'zh-CN'
-                ? '来自 web2 分析和本地运行记录的回测摘要。'
-                : 'Backtest summaries from web2 analysis and local runs.'
+                ? '来自 Signals canonical 分析和本地运行记录的回测摘要。'
+                : 'Backtest summaries from Signals canonical analysis and local runs.'
             }
             rows={dashboard.backtest_jobs as Array<Record<string, unknown>>}
-            onOpen={item => onOpenRecord(`Backtest ${String(item.job_id ?? 'job')}`, item)}
+            onOpen={item =>
+              onOpenRecord(
+                locale === 'zh-CN'
+                  ? `回测 ${String(item.job_id ?? '任务')}`
+                  : `Backtest ${String(item.job_id ?? 'job')}`,
+                item,
+              )
+            }
           />
         </>
       )}
@@ -817,7 +830,12 @@ function SignalsPackView({
             subtitle={t(locale, 'section.pack.signals.connector_health.subtitle')}
             rows={dashboard.connector_health as Array<Record<string, unknown>>}
             onOpen={item =>
-              onOpenRecord(`Connector ${String(item.connector_id ?? 'record')}`, item)
+              onOpenRecord(
+                locale === 'zh-CN'
+                  ? `连接器 ${humanizeTokenLocale(locale, String(item.connector_id ?? 'record'))}`
+                  : `Connector ${String(item.connector_id ?? 'record')}`,
+                item,
+              )
             }
           />
           <Section
@@ -941,13 +959,13 @@ function SignalsStrategyView({
 function SignalsBacktestView({
   locale,
   dashboard,
-  signalsWeb2BaseUrl,
+  signalsWebBaseUrl,
   onOpenRun,
   onOpenRecord,
 }: {
   locale: LongclawLocale
   dashboard: SignalsBacktestVM
-  signalsWeb2BaseUrl?: string
+  signalsWebBaseUrl?: string
   onOpenRun: (run: LongclawRun) => Promise<void>
   onOpenRecord: (
     title: string,
@@ -959,7 +977,7 @@ function SignalsBacktestView({
     <BacktestWorkbench
       locale={locale}
       dashboard={dashboard}
-      signalsWeb2BaseUrl={signalsWeb2BaseUrl}
+      signalsWebBaseUrl={signalsWebBaseUrl}
       onOpenRun={onOpenRun}
       onOpenRecord={onOpenRecord}
     />
@@ -988,7 +1006,12 @@ function SignalsFactoryView({
         subtitle={t(locale, 'section.pack.signals.connector_health.subtitle')}
         rows={dashboard.connector_health as Array<Record<string, unknown>>}
         onOpen={item =>
-          onOpenRecord(`Connector ${String(item.connector_id ?? 'record')}`, item)
+          onOpenRecord(
+            locale === 'zh-CN'
+              ? `连接器 ${humanizeTokenLocale(locale, String(item.connector_id ?? 'record'))}`
+              : `Connector ${String(item.connector_id ?? 'record')}`,
+            item,
+          )
         }
       />
       <Section
@@ -1034,7 +1057,6 @@ export function PackWorkspace({
   surface,
   dashboard,
   signalsWebBaseUrl,
-  signalsWeb2BaseUrl,
   localizedNotice,
   onRunAction,
   onOpenRun,
@@ -1050,7 +1072,7 @@ export function PackWorkspace({
       : surface === 'backtest'
         ? t(locale, 'page.backtest.title')
         : surface === 'factory'
-          ? t(locale, 'page.factory.title')
+          ? t(locale, 'page.plugins.title')
           : t(locale, 'page.execution.title')
   const headerSubtitle =
     surface === 'strategy'
@@ -1059,12 +1081,12 @@ export function PackWorkspace({
         : 'Strategy is organized around charts, watchlists, signals, and a light connector summary.'
       : surface === 'backtest'
         ? locale === 'zh-CN'
-          ? '回测页只承接 web2 回测摘要、输入候选和作业列表。'
-          : 'Backtest only carries the web2 backlog, input queue, and backtest jobs.'
+          ? '回测页只承接 Signals canonical 回测、输入候选和作业列表。'
+          : 'Backtest only carries Signals canonical backtests, input queues, and jobs.'
         : surface === 'factory'
           ? locale === 'zh-CN'
-            ? '工厂页承接连接器详情、运行诊断和能力底座。'
-            : 'Factory carries detailed connector diagnostics and capability substrate state.'
+            ? '插件页承接连接器详情、运行诊断、能力底座和可复用能力治理。'
+            : 'Plugins carries connector diagnostics, capability substrate state, and reusable capability governance.'
           : locale === 'zh-CN'
             ? '执行页服务 RPA 控制台、确认边界、失败修复与交接。'
             : 'Execution serves the RPA console, confirmation boundaries, repair, and handoff.'
@@ -1093,7 +1115,7 @@ export function PackWorkspace({
         <SignalsBacktestView
           locale={locale}
           dashboard={toSignalsBacktestVM(normalizedDashboard as SignalsDashboard)}
-          signalsWeb2BaseUrl={signalsWeb2BaseUrl}
+          signalsWebBaseUrl={signalsWebBaseUrl}
           onOpenRun={onOpenRun}
           onOpenRecord={onOpenRecord}
         />
@@ -1130,7 +1152,7 @@ export function PackWorkspace({
         <SignalsBacktestView
           locale={locale}
           dashboard={toSignalsBacktestVM(normalizedDashboard as SignalsDashboard)}
-          signalsWeb2BaseUrl={signalsWeb2BaseUrl}
+          signalsWebBaseUrl={signalsWebBaseUrl}
           onOpenRun={onOpenRun}
           onOpenRecord={onOpenRecord}
         />

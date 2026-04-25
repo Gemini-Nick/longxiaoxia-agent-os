@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-import { fontStacks, motion, palette } from './designSystem.js'
+import { fontStacks, motion, palette, tradingDeskTheme } from './designSystem.js'
 
 export type ViewportTier = 'wide' | 'mid' | 'narrow'
 
@@ -27,14 +27,14 @@ export function createShellLayout(
   overlayThreadSidebar: boolean
   overlayDetail: boolean
 } {
-  const overlayDetail = tier !== 'wide'
+  const overlayDetail = true
   const overlayThreadSidebar = tier === 'narrow'
-  const railWidth = tier === 'narrow' ? 72 : 78
-  const threadSidebarWidth = tier === 'narrow' ? Math.min(320, Math.max(280, width - 88)) : 304
-  const detailWidth =
-    tier === 'wide'
-      ? 400
-      : Math.min(420, Math.max(340, width - railWidth - (overlayThreadSidebar ? 0 : threadSidebarWidth) - 32))
+  const railWidth = tier === 'narrow' ? 74 : tier === 'mid' ? 132 : 144
+  const threadSidebarWidth = tier === 'narrow' ? Math.min(320, Math.max(280, width - 88)) : tier === 'mid' ? 258 : 286
+  const detailWidth = Math.min(
+    tier === 'narrow' ? 360 : 430,
+    Math.max(330, width - railWidth - (overlayThreadSidebar ? 0 : threadSidebarWidth) - 28),
+  )
 
   return {
     overlayDetail,
@@ -42,7 +42,7 @@ export function createShellLayout(
     app: {
       display: 'flex',
       height: '100vh',
-      background: `linear-gradient(180deg, ${palette.paper} 0%, ${palette.stone} 100%)`,
+      background: tradingDeskTheme.gradients.app,
       color: palette.ink,
       fontFamily: fontStacks.ui,
       overflow: 'hidden',
@@ -51,12 +51,12 @@ export function createShellLayout(
     rail: {
       width: railWidth,
       flexShrink: 0,
-      padding: tier === 'narrow' ? 14 : 16,
-      borderRight: '1px solid rgba(247, 242, 232, 0.06)',
-      background: `linear-gradient(180deg, ${palette.slate} 0%, ${palette.slateSoft} 100%)`,
+      padding: tier === 'narrow' ? 14 : '14px 12px',
+      borderRight: `1px solid ${tradingDeskTheme.alpha.textHairline}`,
+      background: tradingDeskTheme.gradients.rail,
       display: 'flex',
       flexDirection: 'column',
-      gap: 16,
+      gap: tier === 'narrow' ? 16 : 12,
       minHeight: 0,
       overflowY: 'auto',
     },
@@ -77,7 +77,7 @@ export function createShellLayout(
           transform: threadSidebarOpen ? 'translateX(0)' : 'translateX(-104%)',
           transition: `transform ${motion.medium}`,
           zIndex: 16,
-          boxShadow: '0 16px 40px rgba(23, 26, 31, 0.18)',
+          boxShadow: tradingDeskTheme.shadows.panel,
         }
       : {
           width: threadSidebarWidth,
@@ -117,10 +117,11 @@ export function createShellLayout(
           borderLeft: `1px solid ${palette.border}`,
           background: palette.panelRaised,
           padding: tier === 'narrow' ? 18 : 22,
-          overflow: 'auto',
+          overflowY: 'auto',
+          overflowX: 'hidden',
           transform: detailOpen ? 'translateX(0)' : 'translateX(102%)',
           transition: `transform ${motion.medium}`,
-          boxShadow: '0 16px 40px rgba(23, 26, 31, 0.22)',
+          boxShadow: tradingDeskTheme.shadows.panel,
           zIndex: 18,
         }
       : {
@@ -129,7 +130,8 @@ export function createShellLayout(
           borderLeft: `1px solid ${palette.border}`,
           background: palette.panelRaised,
           padding: 22,
-          overflow: 'auto',
+          overflowY: 'auto',
+          overflowX: 'hidden',
         },
     threadBackdrop:
       overlayThreadSidebar && threadSidebarOpen

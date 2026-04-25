@@ -4,9 +4,9 @@ import type {
   LongclawCapabilityEntry,
   LongclawCapabilitySubstrateSummary,
 } from '../../../../src/services/longclawControlPlane/models.js'
+import type { PluginDevIssue } from '../../runtime/wechatPluginDev.js'
 import {
   chromeStyles,
-  humanizeToken,
   palette,
   secondaryButtonStyle,
   segmentedButtonStyle,
@@ -138,6 +138,7 @@ export type CapabilitiesWorkspaceProps = {
   capabilitySkillGroups: CapabilitySkillGroup[]
   managedPluginEntries: LongclawCapabilityEntry[]
   managedRegistryEntries: RuntimeCapabilityRegistryEntry[]
+  pluginDevIssues: PluginDevIssue[]
   capabilityManagerSettings: CapabilityManagerSettings
   managedSkillPathDraft: string
   onManagedSkillPathDraftChange: (value: string) => void
@@ -155,6 +156,11 @@ export type CapabilitiesWorkspaceProps = {
   copyCapabilityMention: (mention: string) => void | Promise<void>
   addDiscoveryRoot: (kind: 'skill' | 'plugin') => void
   removeDiscoveryRoot: (kind: 'skill' | 'plugin', root: string) => void
+  openPluginDevIssue: (issue: PluginDevIssue) => void | Promise<void>
+  startPluginDevIssue: (issueId: string) => void | Promise<void>
+  runPluginDevIssueCi: (issueId: string) => void | Promise<void>
+  mergePluginDevIssue: (issueId: string) => void | Promise<void>
+  registerPluginDevIssue: (issueId: string) => void | Promise<void>
 }
 
 type PluginBucketView = {
@@ -203,9 +209,9 @@ const studioGroupHeaderStyle: React.CSSProperties = {
 const managerCardStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: 10,
-  padding: 12,
-  borderRadius: 14,
+  gap: 8,
+  padding: 10,
+  borderRadius: 8,
   border: `1px solid ${palette.border}`,
   background: palette.panelRaised,
 }
@@ -222,6 +228,17 @@ const managerActionsRowStyle: React.CSSProperties = {
   flexWrap: 'wrap',
   gap: 8,
   alignItems: 'center',
+}
+
+const capabilityDetailsStyle: React.CSSProperties = {
+  width: '100%',
+}
+
+const capabilitySummaryStyle: React.CSSProperties = {
+  ...secondaryButtonStyle,
+  display: 'inline-flex',
+  listStyle: 'none',
+  cursor: 'pointer',
 }
 
 const managerInputStyle: React.CSSProperties = {
@@ -555,13 +572,13 @@ function classifyPluginBucket(
 
 function bucketLabel(locale: LongclawLocale, bucket: CapabilitySourceBucket): string {
   if (bucket === 'runtime-managed') {
-    return locale === 'zh-CN' ? 'Runtime-managed' : 'Runtime-managed'
+    return locale === 'zh-CN' ? '运行时托管' : 'Runtime-managed'
   }
   if (bucket === 'agents') return '~/.agents'
   if (bucket === 'claude') return '~/.claude'
   if (bucket === 'codex') return '~/.codex'
-  if (bucket === 'workspace-repos') return locale === 'zh-CN' ? 'Workspace Repos' : 'Workspace repos'
-  return locale === 'zh-CN' ? 'Other Sources' : 'Other sources'
+  if (bucket === 'workspace-repos') return locale === 'zh-CN' ? '工作区' : 'Workspace repos'
+  return locale === 'zh-CN' ? '其他来源' : 'Other sources'
 }
 
 function bucketSubtitle(
@@ -571,27 +588,27 @@ function bucketSubtitle(
 ): string {
   if (bucket === 'runtime-managed') {
     return locale === 'zh-CN'
-      ? '运行时 overlay 里的插件，可直接移除 overlay。'
+      ? '运行时托管的插件。'
       : 'Plugins installed into the runtime overlay. Overlay removal stays available.'
   }
   if (bucket === 'agents') {
-    return locale === 'zh-CN' ? '来自 ~/.agents 的插件。' : 'Plugins discovered from ~/.agents.'
+    return locale === 'zh-CN' ? '来自 ~/.agents。' : 'Plugins discovered from ~/.agents.'
   }
   if (bucket === 'claude') {
-    return locale === 'zh-CN' ? '来自 ~/.claude 的插件。' : 'Plugins discovered from ~/.claude.'
+    return locale === 'zh-CN' ? '来自 ~/.claude。' : 'Plugins discovered from ~/.claude.'
   }
   if (bucket === 'codex') {
-    return locale === 'zh-CN' ? '来自 ~/.codex 的插件。' : 'Plugins discovered from ~/.codex.'
+    return locale === 'zh-CN' ? '来自 ~/.codex。' : 'Plugins discovered from ~/.codex.'
   }
   if (bucket === 'workspace-repos') {
     return currentWorkspaceRoot
       ? currentWorkspaceRoot
       : locale === 'zh-CN'
-        ? '当前工作区内的仓库插件。'
+        ? '当前工作区。'
         : 'Plugins discovered inside the current workspace.'
   }
   return locale === 'zh-CN'
-    ? '未归入固定来源目录的插件。'
+    ? '未归类来源。'
     : 'Plugins that do not fall into a known source root.'
 }
 
@@ -680,7 +697,7 @@ function hiddenBadgeText(locale: LongclawLocale, count: number): string {
 }
 
 function overlayBadgeText(locale: LongclawLocale, count: number): string {
-  return locale === 'zh-CN' ? `${count} overlay` : `${count} overlay`
+  return locale === 'zh-CN' ? `${count} 托管` : `${count} overlay`
 }
 
 function workspaceBadgeText(locale: LongclawLocale, count: number): string {
@@ -688,9 +705,11 @@ function workspaceBadgeText(locale: LongclawLocale, count: number): string {
 }
 
 function CapabilitiesChip({
+  locale,
   item,
   onUse,
 }: {
+  locale: LongclawLocale
   item: CapabilityItem
   onUse: (item: CapabilityItem) => void
 }) {
@@ -701,7 +720,7 @@ function CapabilitiesChip({
         <div style={capabilityChipHintStyle}>{item.hint || item.description || item.mention}</div>
       </div>
       <span style={statusBadgeStyle(item.kind === 'pack' ? 'running' : 'open')}>
-        {humanizeToken(item.kind)}
+        {humanizeTokenLocale(locale, item.kind)}
       </span>
     </button>
   )
@@ -781,7 +800,6 @@ function CapabilityRow({
   const sourcePath = registryEntry?.source_path ?? preferredCapabilityPath(entry, registryById)
   const pathMeta = formatModeMeta([
     entry.mention,
-    entry.summary,
     capabilityGroup(entry) ? `${locale === 'zh-CN' ? '分组' : 'Group'}: ${capabilityGroup(entry)}` : undefined,
   ])
 
@@ -796,20 +814,12 @@ function CapabilityRow({
           </span>
           {capabilityManaged(entry) && (
             <span style={statusBadgeStyle('running')}>
-              {locale === 'zh-CN' ? 'runtime-managed' : 'runtime-managed'}
+              {locale === 'zh-CN' ? '托管' : 'runtime-managed'}
             </span>
           )}
         </div>
-        {sourcePath && <div style={monoPathStyle}>{sourcePath}</div>}
       </div>
       <div style={managerActionsRowStyle}>
-        <input
-          key={`${entry.capability_id}:${capabilityGroup(entry) ?? ''}`}
-          defaultValue={capabilityGroup(entry) ?? ''}
-          placeholder={t(locale, 'action.set_group')}
-          style={managerInputStyle}
-          onBlur={event => updateCapabilityGroup(entry, event.target.value)}
-        />
         <button
           type="button"
           style={secondaryButtonStyle}
@@ -826,47 +836,162 @@ function CapabilityRow({
         >
           {t(locale, 'action.copy_mention')}
         </button>
+        <details style={capabilityDetailsStyle}>
+          <summary style={capabilitySummaryStyle}>{locale === 'zh-CN' ? '更多' : 'More'}</summary>
+          <div style={{ ...managerActionsRowStyle, marginTop: 8 }}>
+            <input
+              key={`${entry.capability_id}:${capabilityGroup(entry) ?? ''}`}
+              defaultValue={capabilityGroup(entry) ?? ''}
+              placeholder={t(locale, 'action.set_group')}
+              style={managerInputStyle}
+              onBlur={event => updateCapabilityGroup(entry, event.target.value)}
+            />
+            <button
+              type="button"
+              style={secondaryButtonStyle}
+              onClick={() => {
+                void openCapabilityLocalPath(capabilityConfigPath(entry) ?? capabilityPath(entry))
+              }}
+            >
+              {t(locale, 'action.open_config')}
+            </button>
+            <button
+              type="button"
+              style={secondaryButtonStyle}
+              onClick={() => {
+                void openCapabilityLocalPath(sourcePath ?? capabilityPath(entry))
+              }}
+            >
+              {t(locale, 'action.open_source')}
+            </button>
+            <button
+              type="button"
+              style={secondaryButtonStyle}
+              onClick={() => toggleCapabilityVisibility(entry)}
+            >
+              {capabilityDisabled(entry)
+                ? t(locale, 'action.enable_capability')
+                : t(locale, 'action.disable_capability')}
+            </button>
+            {capabilityManaged(entry) && capabilityRegistryId(entry) && (
+              <button
+                type="button"
+                style={secondaryButtonStyle}
+                onClick={() => {
+                  void syncCapabilityRegistry({
+                    type: 'remove',
+                    registryId: capabilityRegistryId(entry)!,
+                  })
+                }}
+              >
+                {locale === 'zh-CN' ? '移除托管' : 'Remove overlay'}
+              </button>
+            )}
+            {sourcePath && <div style={monoPathStyle}>{sourcePath}</div>}
+          </div>
+        </details>
+      </div>
+    </div>
+  )
+}
+
+function PluginDevIssueRow({
+  locale,
+  issue,
+  onOpen,
+  onStart,
+  onRunCi,
+  onMerge,
+  onRegister,
+}: {
+  locale: LongclawLocale
+  issue: PluginDevIssue
+  onOpen: (issue: PluginDevIssue) => void | Promise<void>
+  onStart: (issueId: string) => void | Promise<void>
+  onRunCi: (issueId: string) => void | Promise<void>
+  onMerge: (issueId: string) => void | Promise<void>
+  onRegister: (issueId: string) => void | Promise<void>
+}) {
+  const canStart = issue.status === 'issue_created'
+  const canCi = issue.status === 'branch_created' || issue.status === 'implementing'
+  const canMerge = issue.status === 'mr_ready'
+  const canRegister = issue.status === 'merged'
+
+  return (
+    <div style={managerCardStyle}>
+      <div style={queueRowLeadStyle}>
+        <div style={queueRowTitleStyle}>{issue.title}</div>
+        <div style={managerRowMetaStyle}>
+          {formatModeMeta([
+            issue.kind,
+            issue.branch_name,
+            issue.target_repo,
+            issue.merge_request?.provider ?? 'provider-neutral',
+          ])}
+        </div>
+        <div style={pluginMetaLineStyle}>
+          <span style={statusBadgeStyle(issue.status === 'registered' ? 'open' : 'running')}>
+            {humanizeTokenLocale(locale, issue.status)}
+          </span>
+          <span style={statusBadgeStyle(issue.ci_status === 'failed' ? 'degraded' : 'info')}>
+            {locale === 'zh-CN' ? '检查' : 'CI'} {humanizeTokenLocale(locale, issue.ci_status)}
+          </span>
+          <span style={statusBadgeStyle(issue.merge_status === 'merged' ? 'open' : 'info')}>
+            {locale === 'zh-CN' ? '合并' : 'MR'} {humanizeTokenLocale(locale, issue.merge_status)}
+          </span>
+        </div>
+        <div style={queueRowDescriptionStyle}>{issue.problem_statement}</div>
+      </div>
+      <div style={managerActionsRowStyle}>
         <button
           type="button"
           style={secondaryButtonStyle}
           onClick={() => {
-            void openCapabilityLocalPath(capabilityConfigPath(entry) ?? capabilityPath(entry))
+            void onOpen(issue)
           }}
         >
-          {t(locale, 'action.open_config')}
+          {locale === 'zh-CN' ? '查看需求' : 'Open issue'}
         </button>
         <button
           type="button"
           style={secondaryButtonStyle}
+          disabled={!canStart}
           onClick={() => {
-            void openCapabilityLocalPath(sourcePath ?? capabilityPath(entry))
+            void onStart(issue.issue_id)
           }}
         >
-          {t(locale, 'action.open_source')}
+          {locale === 'zh-CN' ? '创建分支' : 'Create branch'}
         </button>
         <button
           type="button"
           style={secondaryButtonStyle}
-          onClick={() => toggleCapabilityVisibility(entry)}
+          disabled={!canCi}
+          onClick={() => {
+            void onRunCi(issue.issue_id)
+          }}
         >
-          {capabilityDisabled(entry)
-            ? t(locale, 'action.enable_capability')
-            : t(locale, 'action.disable_capability')}
+          {locale === 'zh-CN' ? '跑检查' : 'Run CI'}
         </button>
-        {capabilityManaged(entry) && capabilityRegistryId(entry) && (
-          <button
-            type="button"
-            style={secondaryButtonStyle}
-            onClick={() => {
-              void syncCapabilityRegistry({
-                type: 'remove',
-                registryId: capabilityRegistryId(entry)!,
-              })
-            }}
-          >
-            {locale === 'zh-CN' ? '移除 overlay' : 'Remove overlay'}
-          </button>
-        )}
+        <button
+          type="button"
+          style={secondaryButtonStyle}
+          disabled={!canMerge}
+          onClick={() => {
+            void onMerge(issue.issue_id)
+          }}
+        >
+          {locale === 'zh-CN' ? '合并' : 'Merge'}
+        </button>
+        <button
+          type="button"
+          style={secondaryButtonStyle}
+          disabled={!canRegister}
+          onClick={() => {
+            void onRegister(issue.issue_id)
+          }}
+        >
+          {locale === 'zh-CN' ? '注册托管' : 'Register overlay'}
+        </button>
       </div>
     </div>
   )
@@ -888,6 +1013,7 @@ export function CapabilitiesWorkspace({
   capabilitySkillGroups,
   managedPluginEntries,
   managedRegistryEntries,
+  pluginDevIssues,
   capabilityManagerSettings,
   managedSkillPathDraft,
   onManagedSkillPathDraftChange,
@@ -905,6 +1031,11 @@ export function CapabilitiesWorkspace({
   copyCapabilityMention,
   addDiscoveryRoot,
   removeDiscoveryRoot,
+  openPluginDevIssue,
+  startPluginDevIssue,
+  runPluginDevIssueCi,
+  mergePluginDevIssue,
+  registerPluginDevIssue,
 }: CapabilitiesWorkspaceProps) {
   const rawWorkspaceRoot = normalizePath(agentCwd ?? null)
   const currentWorkspaceRoot =
@@ -942,15 +1073,24 @@ export function CapabilitiesWorkspace({
     runtimeStatus.runtimeProfile ??
     readMetadataString(substrateSummary ?? undefined, 'runtime_profile') ??
     'dev_local_acp_bridge'
-  const [activePanel, setActivePanel] = useState<'plugins' | 'skills' | 'runtime'>('plugins')
+  const [activePanel, setActivePanel] =
+    useState<'installed' | 'development' | 'released' | 'skills' | 'runtime'>('installed')
   const capabilityPanels = [
     {
-      id: 'plugins' as const,
-      label: locale === 'zh-CN' ? '插件' : 'Plugins',
+      id: 'installed' as const,
+      label: locale === 'zh-CN' ? '已安装' : 'Installed',
+    },
+    {
+      id: 'development' as const,
+      label: locale === 'zh-CN' ? '开发中' : 'In dev',
+    },
+    {
+      id: 'released' as const,
+      label: locale === 'zh-CN' ? '发布库' : 'Released',
     },
     {
       id: 'skills' as const,
-      label: 'Skills',
+      label: locale === 'zh-CN' ? '技能' : 'Skills',
     },
     {
       id: 'runtime' as const,
@@ -1021,6 +1161,7 @@ export function CapabilitiesWorkspace({
                       <div style={capabilityRailStyle}>
                         {capabilities.map(item => (
                           <CapabilitiesChip
+                            locale={locale}
                             key={`${mode}:${item.id}`}
                             item={item}
                             onUse={useCapability}
@@ -1162,27 +1303,180 @@ export function CapabilitiesWorkspace({
         </>
       )}
 
-      {activePanel === 'plugins' && (
+      {activePanel === 'development' && (
+        <Section
+          title={locale === 'zh-CN' ? '开发' : 'Plugin development pipeline'}
+          subtitle={
+            locale === 'zh-CN'
+              ? '从微信创建需求，桌面端推进。'
+              : 'WeChat creates issues; desktop advances Issue / Branch / CI / MR / Merge / Register.'
+          }
+        >
+          {pluginDevIssues.filter(issue => issue.status !== 'registered').length === 0 ? (
+            <div style={utilityStyles.emptyState}>
+              {locale === 'zh-CN'
+                ? '暂无开发需求。可从微信发送 /plugin 或 /skill。'
+                : 'No plugin or skill issues in development. Use /plugin or /skill from WeChat.'}
+            </div>
+          ) : (
+            <div style={utilityStyles.stackedList}>
+              {pluginDevIssues
+                .filter(issue => issue.status !== 'registered')
+                .map(issue => (
+                  <PluginDevIssueRow
+                    key={issue.issue_id}
+                    locale={locale}
+                    issue={issue}
+                    onOpen={openPluginDevIssue}
+                    onStart={startPluginDevIssue}
+                    onRunCi={runPluginDevIssueCi}
+                    onMerge={mergePluginDevIssue}
+                    onRegister={registerPluginDevIssue}
+                  />
+                ))}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {activePanel === 'released' && (
+        <Section
+          title={locale === 'zh-CN' ? '发布库' : 'Release library'}
+          subtitle={
+            locale === 'zh-CN'
+              ? '已合并并注册的可复用能力，后续可从微信再次调用。'
+              : 'Merged and registered reusable skills/plugins callable from WeChat later.'
+          }
+        >
+          {pluginDevIssues.filter(issue => issue.status === 'registered').length === 0 ? (
+            <div style={utilityStyles.emptyState}>
+              {locale === 'zh-CN' ? '还没有已发布能力。' : 'No released capabilities yet.'}
+            </div>
+          ) : (
+            <div style={utilityStyles.stackedList}>
+              {pluginDevIssues
+                .filter(issue => issue.status === 'registered')
+                .map(issue => (
+                  <PluginDevIssueRow
+                    key={issue.issue_id}
+                    locale={locale}
+                    issue={issue}
+                    onOpen={openPluginDevIssue}
+                    onStart={startPluginDevIssue}
+                    onRunCi={runPluginDevIssueCi}
+                    onMerge={mergePluginDevIssue}
+                    onRegister={registerPluginDevIssue}
+                  />
+                ))}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {activePanel === 'installed' && (
+        <Section
+          title={t(locale, 'section.capabilities.plugins.title')}
+          subtitle={locale === 'zh-CN' ? '按来源分组，只展开需关注项。' : 'Grouped by source. Attention buckets expand first.'}
+        >
+          {pluginBuckets.length === 0 ? (
+            <div style={utilityStyles.emptyState}>{t(locale, 'empty.no_capability_plugins')}</div>
+          ) : (
+            <div style={accordionStackStyle}>
+              {pluginBuckets.map(bucket => {
+                const expanded = expandedBuckets.includes(bucket.key)
+                return (
+                  <div key={bucket.key} style={bucketCardStyle}>
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      style={accordionButtonStyle(expanded)}
+                      onClick={() => {
+                        setExpandedBuckets(previous =>
+                          previous.includes(bucket.key)
+                            ? previous.filter(key => key !== bucket.key)
+                            : [...previous, bucket.key],
+                        )
+                      }}
+                    >
+                      <div style={queueRowLeadStyle}>
+                        <div style={queueRowTitleStyle}>{bucket.label}</div>
+                        <div style={chromeStyles.quietMeta}>{bucket.subtitle}</div>
+                      </div>
+                      <div style={accordionTailStyle}>
+                        <div style={accordionBadgeRowStyle}>
+                          <span style={statusBadgeStyle(bucket.tone)}>
+                            {tf(locale, 'label.plugins_count', { count: bucket.totalCount })}
+                          </span>
+                          {bucket.disabledCount > 0 && (
+                            <span style={statusBadgeStyle('degraded')}>
+                              {hiddenBadgeText(locale, bucket.disabledCount)}
+                            </span>
+                          )}
+                          {bucket.attentionCount > 0 && (
+                            <span style={statusBadgeStyle('degraded')}>
+                              {attentionBadgeText(locale, bucket.attentionCount)}
+                            </span>
+                          )}
+                        </div>
+                        <span style={statusBadgeStyle(expanded ? 'running' : 'info')}>
+                          {expanded
+                            ? locale === 'zh-CN'
+                              ? '收起'
+                              : 'Collapse'
+                            : locale === 'zh-CN'
+                              ? '展开'
+                              : 'Expand'}
+                        </span>
+                      </div>
+                    </button>
+                    {expanded && (
+                      <div style={accordionPanelStyle}>
+                        {bucket.items.map(plugin => (
+                          <CapabilityRow
+                            key={plugin.capability_id}
+                            locale={locale}
+                            entry={plugin}
+                            kind="plugin"
+                            registryById={registryById}
+                            updateCapabilityGroup={updateCapabilityGroup}
+                            useCapability={useCapability}
+                            copyCapabilityMention={copyCapabilityMention}
+                            openCapabilityLocalPath={openCapabilityLocalPath}
+                            toggleCapabilityVisibility={toggleCapabilityVisibility}
+                            syncCapabilityRegistry={syncCapabilityRegistry}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {activePanel === 'runtime' && (
         <>
           <Section
-            title={locale === 'zh-CN' ? 'Runtime 托管插件' : 'Runtime-managed plugins'}
+            title={locale === 'zh-CN' ? '托管插件' : 'Runtime-managed plugins'}
         subtitle={
           locale === 'zh-CN'
-            ? '在 runtime overlay 里注册 skill / plugin，移除时只删 overlay，不碰 repo 源目录。'
+            ? '注册、重扫、移除托管副本。'
             : 'Register skills/plugins into the runtime overlay. Removal only deletes the overlay, never the repo source.'
         }
       >
         <div style={studioGridStyle}>
           <div style={studioGroupStyle}>
             <div style={studioGroupHeaderStyle}>
-              <div style={queueRowTitleStyle}>{locale === 'zh-CN' ? '注册 Skill' : 'Register skill'}</div>
+              <div style={queueRowTitleStyle}>{locale === 'zh-CN' ? '注册技能' : 'Register skill'}</div>
             </div>
             <div style={managerActionsRowStyle}>
               <input
                 value={managedSkillPathDraft}
                 placeholder={
                   locale === 'zh-CN'
-                    ? 'SKILL.md 所在目录或 skill 根目录'
+                    ? 'SKILL.md 目录或技能根目录…'
                     : 'Path to skill root or directory containing SKILL.md'
                 }
                 style={managerInputStyle}
@@ -1208,12 +1502,12 @@ export function CapabilitiesWorkspace({
 
           <div style={studioGroupStyle}>
             <div style={studioGroupHeaderStyle}>
-              <div style={queueRowTitleStyle}>{locale === 'zh-CN' ? '注册 Plugin' : 'Register plugin'}</div>
+              <div style={queueRowTitleStyle}>{locale === 'zh-CN' ? '注册插件' : 'Register plugin'}</div>
             </div>
             <div style={managerActionsRowStyle}>
               <input
                 value={managedPluginPathDraft}
-                placeholder={locale === 'zh-CN' ? 'plugin 目录路径' : 'Path to plugin directory'}
+                placeholder={locale === 'zh-CN' ? '插件目录路径…' : 'Path to plugin directory…'}
                 style={managerInputStyle}
                 onChange={event => onManagedPluginPathDraftChange(event.target.value)}
               />
@@ -1249,7 +1543,7 @@ export function CapabilitiesWorkspace({
           {managedRegistryEntries.length === 0 ? (
             <div style={utilityStyles.emptyState}>
               {locale === 'zh-CN'
-                ? '当前还没有 runtime-managed overlay。'
+                ? '当前没有托管副本。'
                 : 'No runtime-managed overlay capabilities are registered yet.'}
             </div>
           ) : (
@@ -1269,7 +1563,7 @@ export function CapabilitiesWorkspace({
                       void openCapabilityLocalPath(entry.managed_path)
                     }}
                   >
-                    {locale === 'zh-CN' ? '打开 overlay' : 'Open overlay'}
+                    {locale === 'zh-CN' ? '打开托管副本' : 'Open overlay'}
                   </button>
                   <button
                     type="button"
@@ -1290,7 +1584,7 @@ export function CapabilitiesWorkspace({
                       })
                     }}
                   >
-                    {locale === 'zh-CN' ? '移除 overlay' : 'Remove overlay'}
+                    {locale === 'zh-CN' ? '移除托管副本' : 'Remove overlay'}
                   </button>
                 </div>
               </div>
@@ -1303,7 +1597,7 @@ export function CapabilitiesWorkspace({
             title={t(locale, 'section.capabilities.plugins.title')}
             subtitle={
               locale === 'zh-CN'
-                ? '按来源折叠管理插件，只默认展开 overlay 和异常来源。'
+                ? '按来源分组，默认只展开需关注项。'
                 : 'Manage plugins by source bucket. Only overlay and attention buckets expand by default.'
             }
           >
@@ -1422,7 +1716,7 @@ export function CapabilitiesWorkspace({
                   {capabilityManagerSettings.extra_skill_roots.length === 0 ? (
                     <div style={utilityStyles.emptyState}>
                       {locale === 'zh-CN'
-                        ? '当前没有额外的 skill 搜索路径。'
+                        ? '当前没有额外技能路径。'
                         : 'No extra skill roots are configured.'}
                     </div>
                   ) : (
@@ -1465,7 +1759,7 @@ export function CapabilitiesWorkspace({
                   {capabilityManagerSettings.extra_plugin_roots.length === 0 ? (
                     <div style={utilityStyles.emptyState}>
                       {locale === 'zh-CN'
-                        ? '当前没有额外的 plugin 搜索路径。'
+                        ? '当前没有额外插件路径。'
                         : 'No extra plugin roots are configured.'}
                     </div>
                   ) : (
@@ -1501,7 +1795,7 @@ export function CapabilitiesWorkspace({
               {capabilitySkillGroups.map(group => (
                 <div key={group.group} style={studioGroupStyle}>
                   <div style={studioGroupHeaderStyle}>
-                    <div style={queueRowTitleStyle}>{humanizeToken(group.group)}</div>
+                    <div style={queueRowTitleStyle}>{humanizeTokenLocale(locale, group.group)}</div>
                     <div style={chromeStyles.quietMeta}>
                       {tf(locale, 'label.skill_count', { count: group.items.length })}
                     </div>

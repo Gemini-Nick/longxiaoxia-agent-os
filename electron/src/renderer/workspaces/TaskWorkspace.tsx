@@ -520,8 +520,8 @@ export function ExecutionConsole({
           title={locale === 'zh-CN' ? '任务收件箱' : 'Task inbox'}
           subtitle={
             locale === 'zh-CN'
-              ? '把继续中的任务和需要处理的事项放在一处。'
-              : 'Keep resumable threads and action-required items in one place.'
+              ? '继续项与待处理项。'
+              : 'Resumable and pending items.'
           }
         >
           <div style={utilityStyles.stackedList}>
@@ -850,8 +850,8 @@ export function TaskWorkspace({
             title={locale === 'zh-CN' ? '任务收件箱' : 'Task inbox'}
             subtitle={
               locale === 'zh-CN'
-                ? '把继续中的任务和需要处理的事项放在一处。'
-                : 'Keep resumable threads and action-required items in one place.'
+                ? '继续项与待处理项。'
+                : 'Resumable and pending items.'
             }
           >
             <div style={utilityStyles.stackedList}>

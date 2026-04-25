@@ -16,7 +16,7 @@ const sectionHeaderStyle: React.CSSProperties = {
   alignItems: 'flex-start',
   justifyContent: 'space-between',
   gap: 12,
-  marginBottom: 14,
+  marginBottom: 10,
 }
 
 const sectionHeadingBlockStyle: React.CSSProperties = {
@@ -70,9 +70,10 @@ const queueRowNextActionStyle: React.CSSProperties = {
 
 const statusStripValueStyle: React.CSSProperties = {
   fontFamily: chromeStyles.sectionTitle.fontFamily,
-  fontSize: 32,
+  fontSize: 22,
   lineHeight: 1,
   color: palette.ink,
+  fontVariantNumeric: 'tabular-nums',
 }
 
 const statusStripLabelRowStyle: React.CSSProperties = {
@@ -137,7 +138,6 @@ export function QueueRow({
 }
 
 export function StatusStrip({
-  locale,
   items,
 }: {
   locale: LongclawLocale
@@ -146,17 +146,11 @@ export function StatusStrip({
   return (
     <div style={surfaceStyles.strip}>
       {items.map(item => {
-        const toneLabel = item.tone ? humanizeTokenLocale(locale, item.tone) : undefined
-        const showToneBadge =
-          Boolean(toneLabel && toneLabel.toLowerCase() !== item.label.trim().toLowerCase())
         return (
           <div key={item.label} style={surfaceStyles.stripItem}>
             <div style={statusStripValueStyle}>{item.value}</div>
             <div style={statusStripLabelRowStyle}>
               <span>{item.label}</span>
-              {item.tone && toneLabel && showToneBadge && (
-                <span style={statusBadgeStyle(item.tone)}>{toneLabel}</span>
-              )}
             </div>
           </div>
         )
@@ -181,7 +175,20 @@ export function Section({
       <div style={sectionHeaderStyle}>
         <div style={sectionHeadingBlockStyle}>
           <h2 style={chromeStyles.sectionTitle}>{title}</h2>
-          {subtitle && <div style={chromeStyles.subtleText}>{subtitle}</div>}
+          {subtitle && (
+            <div
+              style={{
+                ...chromeStyles.subtleText,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: 760,
+              }}
+              title={subtitle}
+            >
+              {subtitle}
+            </div>
+          )}
         </div>
         {actions}
       </div>

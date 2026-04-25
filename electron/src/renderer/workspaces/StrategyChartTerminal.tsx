@@ -11,8 +11,8 @@ import {
 } from 'klinecharts'
 
 import type { SignalsDashboard } from '../../../../src/services/longclawControlPlane/models.js'
-import { statusBadgeStyle } from '../designSystem.js'
-import { type LongclawLocale } from '../i18n.js'
+import { fontStacks, statusBadgeStyle, tradingDeskTheme } from '../designSystem.js'
+import { type LongclawLocale, humanizeTokenLocale, localizeSystemText } from '../i18n.js'
 import { observedFetchJson, recordObservationEvent } from '../observation.js'
 
 type StrategyDashboard = Pick<
@@ -121,6 +121,7 @@ const SIGNAL_OVERLAY_GROUP = 'longclaw-signals'
 const LEVEL_OVERLAY_GROUP = 'longclaw-levels'
 
 let signalOverlayRegistered = false
+const terminalTheme = tradingDeskTheme.colors
 
 const terminalRootStyle: React.CSSProperties = {
   height: '100%',
@@ -128,19 +129,19 @@ const terminalRootStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 1,
-  background: '#0B1118',
-  color: '#D7DEE8',
-  fontFamily: '"Instrument Sans", "PingFang SC", "Noto Sans SC", sans-serif',
+  background: terminalTheme.root,
+  color: terminalTheme.text,
+  fontFamily: fontStacks.ui,
 }
 
 const terminalTopBarStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(220px, 320px) minmax(190px, 1fr) auto',
+  gridTemplateColumns: 'minmax(220px, 300px) minmax(0, 1fr) auto',
   alignItems: 'center',
   gap: 6,
   padding: '3px 7px',
-  borderBottom: '1px solid #1C2633',
-  background: '#0F1620',
+  borderBottom: `1px solid ${terminalTheme.grid}`,
+  background: terminalTheme.panel,
 }
 
 const searchFormStyle: React.CSSProperties = {
@@ -153,12 +154,12 @@ const searchFormStyle: React.CSSProperties = {
 const searchInputStyle: React.CSSProperties = {
   height: 28,
   minWidth: 0,
-  border: '1px solid #263244',
+  border: `1px solid ${terminalTheme.borderStrong}`,
   borderRadius: 5,
-  background: '#0B1118',
-  color: '#F2F6FB',
+  background: terminalTheme.root,
+  color: terminalTheme.textStrong,
   padding: '0 8px',
-  fontFamily: '"IBM Plex Mono", Menlo, monospace',
+  fontFamily: fontStacks.mono,
   fontSize: 13,
   outline: 'none',
 }
@@ -166,12 +167,22 @@ const searchInputStyle: React.CSSProperties = {
 const terminalGridStyle: React.CSSProperties = {
   flex: 1,
   display: 'grid',
-  gridTemplateColumns: '198px minmax(600px, 1fr) 246px',
+  gridTemplateColumns: 'minmax(190px, 240px) minmax(0, 1fr) minmax(218px, 276px)',
   gridTemplateRows: 'minmax(0, 1fr)',
   gap: 1,
   alignItems: 'stretch',
   minHeight: 0,
   overflow: 'hidden',
+}
+
+const fallbackGridStyle: React.CSSProperties = {
+  flex: 1,
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+  gap: 1,
+  minHeight: 0,
+  overflow: 'auto',
+  background: terminalTheme.grid,
 }
 
 const terminalSideStyle: React.CSSProperties = {
@@ -181,7 +192,7 @@ const terminalSideStyle: React.CSSProperties = {
   minWidth: 0,
   minHeight: 0,
   overflow: 'auto',
-  background: '#1C2633',
+  background: terminalTheme.grid,
 }
 
 const terminalPanelStyle: React.CSSProperties = {
@@ -194,8 +205,8 @@ const terminalPanelStyle: React.CSSProperties = {
   padding: 6,
   border: 'none',
   borderRadius: 0,
-  background: '#0F1620',
-  color: '#D7DEE8',
+  background: terminalTheme.panel,
+  color: terminalTheme.text,
   overflow: 'hidden',
 }
 
@@ -207,26 +218,26 @@ const panelHeaderStyle: React.CSSProperties = {
 }
 
 const panelTitleStyle: React.CSSProperties = {
-  color: '#F2F6FB',
+  color: terminalTheme.textStrong,
   fontSize: 11,
   fontWeight: 700,
 }
 
 const mutedTextStyle: React.CSSProperties = {
-  color: '#7F8EA3',
+  color: terminalTheme.muted,
   fontSize: 12,
   lineHeight: 1.35,
 }
 
 const monoTextStyle: React.CSSProperties = {
-  color: '#9CB1CE',
-  fontFamily: '"IBM Plex Mono", Menlo, monospace',
+  color: terminalTheme.mono,
+  fontFamily: fontStacks.mono,
   fontSize: 12,
   lineHeight: 1.35,
 }
 
 const eyebrowDarkStyle: React.CSSProperties = {
-  color: '#8EA0B8',
+  color: terminalTheme.mutedStrong,
   fontSize: 11,
   fontWeight: 700,
   letterSpacing: 0,
@@ -234,7 +245,7 @@ const eyebrowDarkStyle: React.CSSProperties = {
 }
 
 const rowTitleStyle: React.CSSProperties = {
-  color: '#F2F6FB',
+  color: terminalTheme.textStrong,
   fontWeight: 700,
   minWidth: 0,
   overflow: 'hidden',
@@ -246,43 +257,43 @@ const dataRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 6,
-  border: '1px solid #222D3B',
+  border: `1px solid ${terminalTheme.border}`,
   borderRadius: 5,
-  background: '#121B27',
+  background: terminalTheme.panelSoft,
   padding: '4px 6px',
   minWidth: 0,
 }
 
 const emptyStateDarkStyle: React.CSSProperties = {
-  border: '1px dashed #2A3748',
+  border: `1px dashed ${terminalTheme.borderMuted}`,
   borderRadius: 5,
-  background: '#0E1722',
-  color: '#7F8EA3',
+  background: terminalTheme.empty,
+  color: terminalTheme.muted,
   padding: '12px 10px',
   textAlign: 'center',
   fontSize: 13,
 }
 
 const noticeDarkStyle: React.CSSProperties = {
-  border: '1px solid rgba(70, 132, 194, 0.35)',
-  background: 'rgba(43, 91, 137, 0.16)',
-  color: '#BFD9F5',
+  border: `1px solid ${tradingDeskTheme.alpha.infoBorder}`,
+  background: tradingDeskTheme.alpha.infoSurface,
+  color: terminalTheme.infoText,
   padding: '5px 8px',
   fontSize: 12,
 }
 
 const warningDarkStyle: React.CSSProperties = {
   ...noticeDarkStyle,
-  border: '1px solid rgba(208, 138, 84, 0.38)',
-  background: 'rgba(208, 138, 84, 0.16)',
-  color: '#FFD0A8',
+  border: `1px solid ${tradingDeskTheme.alpha.accentBorder}`,
+  background: tradingDeskTheme.alpha.accentSurface,
+  color: terminalTheme.accentText,
 }
 
 const errorDarkStyle: React.CSSProperties = {
   ...noticeDarkStyle,
-  border: '1px solid rgba(242, 54, 69, 0.38)',
-  background: 'rgba(242, 54, 69, 0.14)',
-  color: '#FFB4BD',
+  border: `1px solid ${tradingDeskTheme.alpha.errorBorder}`,
+  background: tradingDeskTheme.alpha.errorSurface,
+  color: terminalTheme.errorText,
 }
 
 const compactListStyle: React.CSSProperties = {
@@ -292,15 +303,15 @@ const compactListStyle: React.CSSProperties = {
 }
 
 const targetButtonStyle: React.CSSProperties = {
-  border: '1px solid #222D3B',
+  border: `1px solid ${terminalTheme.border}`,
   borderRadius: 5,
   padding: '5px 7px',
   textAlign: 'left',
   cursor: 'pointer',
   width: '100%',
-  background: '#121B27',
-  color: '#D7DEE8',
-  fontFamily: '"Instrument Sans", "PingFang SC", "Noto Sans SC", sans-serif',
+  background: terminalTheme.panelSoft,
+  color: terminalTheme.text,
+  fontFamily: fontStacks.ui,
 }
 
 const chartStageStyle: React.CSSProperties = {
@@ -312,7 +323,7 @@ const chartStageStyle: React.CSSProperties = {
   padding: 6,
   border: 'none',
   borderRadius: 0,
-  background: '#0B1118',
+  background: terminalTheme.root,
   overflow: 'hidden',
 }
 
@@ -324,7 +335,7 @@ const chartHeaderStyle: React.CSSProperties = {
 }
 
 const chartTitleStyle: React.CSSProperties = {
-  color: '#F2F6FB',
+  color: terminalTheme.textStrong,
   fontSize: 17,
   lineHeight: 1.1,
   fontWeight: 800,
@@ -352,9 +363,9 @@ const headerMetricsStyle: React.CSSProperties = {
 }
 
 const headerMetricStyle: React.CSSProperties = {
-  border: '1px solid #222D3B',
+  border: `1px solid ${terminalTheme.border}`,
   borderRadius: 4,
-  background: '#101926',
+  background: terminalTheme.panelInset,
   padding: '4px 6px',
   minWidth: 0,
 }
@@ -371,9 +382,9 @@ const chartCanvasShellStyle: React.CSSProperties = {
   minHeight: 0,
   flex: 1,
   overflow: 'hidden',
-  border: '1px solid #202A38',
+  border: `1px solid ${terminalTheme.chartBorder}`,
   borderRadius: 3,
-  background: '#131722',
+  background: terminalTheme.chartPanel,
 }
 
 const chartCanvasStyle: React.CSSProperties = {
@@ -389,29 +400,29 @@ const chartOverlayMessageStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   padding: 18,
-  color: '#D1D4DC',
+  color: terminalTheme.text,
   textAlign: 'center',
-  background: 'rgba(19, 23, 34, 0.88)',
+  background: 'rgba(8, 11, 18, 0.88)',
   zIndex: 2,
 }
 
 const signalRowStyle: React.CSSProperties = {
   display: 'flex',
-  border: '1px solid #222D3B',
+  border: `1px solid ${terminalTheme.border}`,
   borderRadius: 5,
-  background: '#121B27',
+  background: terminalTheme.panelSoft,
   padding: '5px 7px',
   alignItems: 'center',
 }
 
 const quickChipStyle: React.CSSProperties = {
-  border: '1px solid #263244',
+  border: `1px solid ${terminalTheme.borderStrong}`,
   borderRadius: 5,
-  background: '#111A25',
-  color: '#B7C2D0',
+  background: terminalTheme.control,
+  color: terminalTheme.controlText,
   padding: '5px 7px',
   cursor: 'pointer',
-  fontFamily: '"Instrument Sans", "PingFang SC", "Noto Sans SC", sans-serif',
+  fontFamily: fontStacks.ui,
   fontSize: 13,
   fontWeight: 600,
   justifyContent: 'center',
@@ -420,9 +431,9 @@ const quickChipStyle: React.CSSProperties = {
 
 const quickChipActiveStyle: React.CSSProperties = {
   ...quickChipStyle,
-  border: '1px solid #D08A54',
-  background: 'rgba(208, 138, 84, 0.18)',
-  color: '#FFD0A8',
+  border: `1px solid ${terminalTheme.accent}`,
+  background: terminalTheme.accentSoft,
+  color: terminalTheme.accentText,
   justifyContent: 'center',
   minHeight: 26,
 }
@@ -430,14 +441,14 @@ const quickChipActiveStyle: React.CSSProperties = {
 function terminalButtonStyle(active = false, disabled = false): React.CSSProperties {
   return {
     height: 28,
-    border: `1px solid ${active ? '#D08A54' : '#263244'}`,
+    border: `1px solid ${active ? terminalTheme.accent : terminalTheme.borderStrong}`,
     borderRadius: 5,
-    background: active ? 'rgba(208, 138, 84, 0.18)' : '#111A25',
-    color: active ? '#FFD0A8' : '#B7C2D0',
+    background: active ? terminalTheme.accentSoft : terminalTheme.control,
+    color: active ? terminalTheme.accentText : terminalTheme.controlText,
     padding: '0 9px',
     cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.45 : 1,
-    fontFamily: '"Instrument Sans", "PingFang SC", "Noto Sans SC", sans-serif',
+    fontFamily: fontStacks.ui,
     fontSize: 13,
     fontWeight: 700,
     whiteSpace: 'nowrap',
@@ -585,35 +596,35 @@ function symbolDataFromIndexChart(
 function chartStyles(): DeepPartial<Styles> {
   return {
     grid: {
-      horizontal: { color: 'rgba(120, 123, 134, 0.18)' },
-      vertical: { color: 'rgba(120, 123, 134, 0.12)' },
+      horizontal: { color: tradingDeskTheme.chart.gridHorizontal },
+      vertical: { color: tradingDeskTheme.chart.gridVertical },
     },
     candle: {
       bar: {
-        upColor: '#F23645',
-        downColor: '#26A69A',
-        noChangeColor: '#787B86',
-        upBorderColor: '#F23645',
-        downBorderColor: '#26A69A',
-        noChangeBorderColor: '#787B86',
-        upWickColor: '#F23645',
-        downWickColor: '#26A69A',
-        noChangeWickColor: '#787B86',
+        upColor: tradingDeskTheme.market.up,
+        downColor: tradingDeskTheme.market.down,
+        noChangeColor: tradingDeskTheme.market.flat,
+        upBorderColor: tradingDeskTheme.market.up,
+        downBorderColor: tradingDeskTheme.market.down,
+        noChangeBorderColor: tradingDeskTheme.market.flat,
+        upWickColor: tradingDeskTheme.market.up,
+        downWickColor: tradingDeskTheme.market.down,
+        noChangeWickColor: tradingDeskTheme.market.flat,
       },
       tooltip: {
         text: {
-          color: '#D1D4DC',
+          color: terminalTheme.text,
           size: 12,
           family: 'IBM Plex Mono, Menlo, monospace',
         },
       },
       priceMark: {
         last: {
-          line: { show: true, color: '#2962FF', size: 1 },
+          line: { show: true, color: tradingDeskTheme.chart.line, size: 1 },
           text: {
             show: true,
-            color: '#FFFFFF',
-            backgroundColor: '#2962FF',
+            color: terminalTheme.white,
+            backgroundColor: tradingDeskTheme.chart.line,
             size: 11,
             borderRadius: 4,
           },
@@ -622,39 +633,39 @@ function chartStyles(): DeepPartial<Styles> {
     },
     indicator: {
       lines: [
-        { color: '#F7931A', size: 1, style: 'solid' },
-        { color: '#2962FF', size: 1, style: 'solid' },
-        { color: '#E040FB', size: 1, style: 'solid' },
-        { color: '#26A69A', size: 1, style: 'solid' },
+        { color: tradingDeskTheme.chart.orange, size: 1, style: 'solid' },
+        { color: tradingDeskTheme.chart.line, size: 1, style: 'solid' },
+        { color: tradingDeskTheme.chart.violet, size: 1, style: 'solid' },
+        { color: tradingDeskTheme.market.down, size: 1, style: 'solid' },
       ],
       tooltip: {
         text: {
-          color: '#D1D4DC',
+          color: terminalTheme.text,
           size: 11,
           family: 'IBM Plex Mono, Menlo, monospace',
         },
       },
     },
     xAxis: {
-      axisLine: { color: 'rgba(120, 123, 134, 0.35)' },
-      tickText: { color: '#787B86', size: 11 },
+      axisLine: { color: tradingDeskTheme.alpha.textBorderStrong },
+      tickText: { color: tradingDeskTheme.market.flat, size: 11 },
     },
     yAxis: {
-      axisLine: { color: 'rgba(120, 123, 134, 0.35)' },
-      tickText: { color: '#787B86', size: 11 },
+      axisLine: { color: tradingDeskTheme.alpha.textBorderStrong },
+      tickText: { color: tradingDeskTheme.market.flat, size: 11 },
     },
     crosshair: {
       horizontal: {
-        line: { color: '#787B86', size: 1 },
-        text: { color: '#FFFFFF', backgroundColor: '#2A2E39' },
+        line: { color: tradingDeskTheme.market.flat, size: 1 },
+        text: { color: terminalTheme.white, backgroundColor: terminalTheme.crosshair },
       },
       vertical: {
-        line: { color: '#787B86', size: 1 },
-        text: { color: '#FFFFFF', backgroundColor: '#2A2E39' },
+        line: { color: tradingDeskTheme.market.flat, size: 1 },
+        text: { color: terminalTheme.white, backgroundColor: terminalTheme.crosshair },
       },
     },
     separator: {
-      color: 'rgba(120, 123, 134, 0.25)',
+      color: tradingDeskTheme.chart.separator,
       size: 1,
     },
   }
@@ -675,7 +686,7 @@ function ensureSignalOverlay() {
       const data = recordValue(overlay.extendData) as SignalOverlayData
       const label = data.label || 'SIG'
       const side = data.side === 'sell' ? 'sell' : 'buy'
-      const color = data.color || (side === 'buy' ? '#F7931A' : '#9C27B0')
+      const color = data.color || (side === 'buy' ? tradingDeskTheme.chart.orange : tradingDeskTheme.chart.purple)
       const width = Math.max(34, Math.min(78, label.length * 9 + 14))
       const height = 20
       const gap = 10
@@ -714,7 +725,7 @@ function ensureSignalOverlay() {
           attrs: { x: rectX, y: rectY, width, height },
           styles: {
             color,
-            borderColor: 'rgba(255, 255, 255, 0.35)',
+            borderColor: tradingDeskTheme.alpha.textBorderStrong,
             borderRadius: 5,
           },
           ignoreEvent: true,
@@ -729,7 +740,7 @@ function ensureSignalOverlay() {
             baseline: 'middle',
           },
           styles: {
-            color: '#FFFFFF',
+            color: terminalTheme.white,
             size: 10,
             weight: 700,
             family: 'IBM Plex Mono, Menlo, monospace',
@@ -822,7 +833,7 @@ function createSignalOverlays(chart: Chart, data: KLineData[], signals: Strategy
       extendData: {
         label,
         side,
-        color: side === 'buy' ? '#F7931A' : '#9C27B0',
+        color: side === 'buy' ? tradingDeskTheme.chart.orange : tradingDeskTheme.chart.purple,
       } satisfies SignalOverlayData,
     })
   })
@@ -842,10 +853,10 @@ function createLevelOverlays(chart: Chart, data: KLineData[], keyLevels: Strateg
       points: [{ timestamp, value }],
       extendData: [level.name, value.toFixed(2)].filter(Boolean).join(' '),
       styles: {
-        line: { color: 'rgba(41, 98, 255, 0.55)', size: 1 },
+        line: { color: tradingDeskTheme.chart.line, size: 1 },
         text: {
-          color: '#FFFFFF',
-          backgroundColor: 'rgba(41, 98, 255, 0.78)',
+          color: terminalTheme.white,
+          backgroundColor: tradingDeskTheme.chart.line,
           size: 10,
         },
       },
@@ -1279,27 +1290,48 @@ export function StrategyChartTerminal({
       <div style={terminalRootStyle}>
         <div style={warningDarkStyle}>
           {locale === 'zh-CN'
-            ? '没有配置 LONGCLAW_SIGNALS_WEB_BASE_URL，策略页只能展示降级摘要，无法直接承接实时 chart。'
-            : 'LONGCLAW_SIGNALS_WEB_BASE_URL is not configured, so Strategy can only show a degraded summary instead of the live chart.'}
+            ? '信号实时入口未配置，当前显示降级摘要。'
+            : 'Signals live endpoint is not configured. Showing a degraded summary.'}
         </div>
-        <div style={terminalGridStyle}>
+        <div style={fallbackGridStyle}>
           <FallbackList
             locale={locale}
             title={locale === 'zh-CN' ? '买入候选' : 'Buy candidates'}
             rows={dashboard.buy_candidates as Array<Record<string, unknown>>}
-            onOpen={item => onOpenRecord(`Buy ${String(item.symbol ?? 'candidate')}`, item)}
+            onOpen={item =>
+              onOpenRecord(
+                locale === 'zh-CN'
+                  ? `买入 ${String(item.symbol ?? '候选')}`
+                  : `Buy ${String(item.symbol ?? 'candidate')}`,
+                item,
+              )
+            }
           />
           <FallbackList
             locale={locale}
             title={locale === 'zh-CN' ? '卖出预警' : 'Sell warnings'}
             rows={dashboard.sell_warnings as Array<Record<string, unknown>>}
-            onOpen={item => onOpenRecord(`Sell ${String(item.symbol ?? 'warning')}`, item)}
+            onOpen={item =>
+              onOpenRecord(
+                locale === 'zh-CN'
+                  ? `卖出 ${String(item.symbol ?? '预警')}`
+                  : `Sell ${String(item.symbol ?? 'warning')}`,
+                item,
+              )
+            }
           />
           <FallbackList
             locale={locale}
             title={locale === 'zh-CN' ? '连接器' : 'Connectors'}
             rows={dashboard.connector_health as Array<Record<string, unknown>>}
-            onOpen={item => onOpenRecord(`Connector ${String(item.connector_id ?? 'record')}`, item)}
+            onOpen={item =>
+              onOpenRecord(
+                locale === 'zh-CN'
+                  ? `连接器 ${humanizeTokenLocale(locale, String(item.connector_id ?? 'record'))}`
+                  : `Connector ${String(item.connector_id ?? 'record')}`,
+                item,
+              )
+            }
           />
         </div>
       </div>
@@ -1310,11 +1342,11 @@ export function StrategyChartTerminal({
     <div style={terminalRootStyle}>
       <div style={terminalTopBarStyle}>
         <form style={searchFormStyle} onSubmit={submitSearch}>
-          <input
+        <input
             aria-label={locale === 'zh-CN' ? '搜索标的' : 'Search symbol'}
             style={searchInputStyle}
             value={searchDraft}
-            placeholder={locale === 'zh-CN' ? '输入指数 / 行业 / 股票代码或名称' : 'Index, sector, ticker, or name'}
+            placeholder={locale === 'zh-CN' ? '输入指数 / 行业 / 股票代码或名称…' : 'Index, sector, ticker, or name…'}
             onChange={event => setSearchDraft(event.target.value)}
           />
           <button type="submit" style={terminalButtonStyle(false)}>
@@ -1431,7 +1463,7 @@ export function StrategyChartTerminal({
 
           <Panel
             title={locale === 'zh-CN' ? '行业 / 概念' : 'Sectors'}
-            meta={clusterRows.length ? 'web2' : ''}
+            meta={clusterRows.length ? 'gateway' : ''}
           >
             <TargetRows
               rows={clusterRows}
@@ -1464,7 +1496,7 @@ export function StrategyChartTerminal({
                 ].map(([label, value]) => (
                   <div key={label} style={headerMetricStyle}>
                     <div style={eyebrowDarkStyle}>{label}</div>
-                    <div style={{ color: '#F2F6FB', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ color: terminalTheme.textStrong, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {value}
                     </div>
                   </div>
@@ -1665,10 +1697,19 @@ function FallbackList({
               onClick={() => onOpen(row)}
             >
               <div style={rowTitleStyle}>
-                {compactText(row.name) || compactText(row.symbol) || compactText(row.connector_id) || 'N/A'}
+                {compactText(row.name) ||
+                  compactText(row.symbol) ||
+                  humanizeTokenLocale(locale, compactText(row.connector_id)) ||
+                  'N/A'}
               </div>
               <div style={mutedTextStyle}>
-                {[compactText(row.status), compactText(row.direction), compactText(row.summary)]
+                {[
+                  compactText(row.status)
+                    ? humanizeTokenLocale(locale, compactText(row.status))
+                    : '',
+                  compactText(row.direction),
+                  localizeSystemText(locale, compactText(row.summary)),
+                ]
                   .filter(Boolean)
                   .join(' · ')}
               </div>

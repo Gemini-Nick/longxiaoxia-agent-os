@@ -235,12 +235,12 @@ describe('Chinese IA surface scoping', () => {
       }),
     )
 
-    expect(strategyMarkup).toContain('没有配置 LONGCLAW_SIGNALS_WEB_BASE_URL')
+    expect(strategyMarkup).toContain('信号实时入口未配置，当前显示降级摘要。')
     expect(strategyMarkup).toContain('买入候选')
-    expect(strategyMarkup).not.toContain('WEB2 回测')
-    expect(backtestMarkup).toContain('没有配置 LONGCLAW_SIGNALS_WEB2_BASE_URL')
+    expect(strategyMarkup).not.toContain('Signals 回测')
+    expect(backtestMarkup).toContain('信号实时入口未配置，当前显示降级队列。')
     expect(backtestMarkup).toContain('回测队列')
-    expect(backtestMarkup).not.toContain('没有配置 LONGCLAW_SIGNALS_WEB_BASE_URL')
+    expect(backtestMarkup).not.toContain('买入候选')
   })
 
   it('shows linked work items inside the WeChat session detail', () => {
@@ -278,6 +278,17 @@ describe('Chinese IA surface scoping', () => {
           sessionsDirExists: true,
           sessionCount: 1,
         },
+        bindingStatus: {
+          state: 'bound',
+          provider: 'ilink_service_account',
+          identity_status: 'ilink_verified',
+          wechat_user_id: 'wx-user',
+          display_name: '微信用户',
+          allowed_routes: ['knowledge_note', 'dev_issue', 'dev_plugin', 'signals', 'backtest'],
+          recent_inbound: [],
+        },
+        routeReceipts: [],
+        pluginDevIssues: [],
         search: '',
         sourceFilter: 'all',
         visibilityFilter: 'active',
@@ -321,11 +332,19 @@ describe('Chinese IA surface scoping', () => {
         onOpenLinkedRun: () => undefined,
         onOpenLinkedWorkItem: () => undefined,
         onOpenAttachment: () => undefined,
+        onCreateBindingSession: () => undefined,
+        onCreateLocalBindingSession: () => undefined,
+        onCompleteBindingSession: () => undefined,
+        onRevokeBinding: () => undefined,
+        onRouteMessage: async () => null,
+        onOpenPluginIssue: () => undefined,
       }),
     )
 
     expect(markup).toContain('补抓工商资料')
     expect(markup).toContain('查看待办')
-    expect(markup).toContain('Canonical 会话')
+    expect(markup).toContain('消息与回复')
+    expect(markup).not.toContain('Canonical 会话')
+    expect(markup).not.toContain('ctx-1')
   })
 })

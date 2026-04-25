@@ -13,9 +13,15 @@ import type {
   LongclawTask,
   LongclawWorkItem,
 } from '../../../src/services/longclawControlPlane/models.js'
+import type {
+  PluginDevIssue,
+  WeChatBindingStatus,
+  WeChatRouteReceipt,
+} from '../runtime/wechatPluginDev.js'
 import {
   buttonStyleForState,
   chromeStyles,
+  fontStacks,
   humanizeToken,
   navButtonStyle,
   palette,
@@ -23,9 +29,10 @@ import {
   segmentedButtonStyle,
   statusBadgeStyle,
   surfaceStyles,
+  tradingDeskTheme,
   utilityStyles,
 } from './designSystem.js'
-import { type LongclawLocale, humanizeTokenLocale, t, tf } from './i18n.js'
+import { type LongclawLocale, humanizeTokenLocale, localizeSystemText, t, tf } from './i18n.js'
 import { createShellLayout, getViewportTier } from './layout.js'
 import {
   ActionButtons,
@@ -456,6 +463,22 @@ declare global {
         patch: { hidden?: boolean; archived?: boolean },
       ) => Promise<Record<string, { hidden: boolean; archived: boolean; updated_at: string }>>
     }
+    longclawWechat: {
+      getBindingStatus: () => Promise<WeChatBindingStatus>
+      createBindingSession: () => Promise<WeChatBindingStatus>
+      createLocalBindingSession: () => Promise<WeChatBindingStatus>
+      completeBindingSession: () => Promise<WeChatBindingStatus>
+      revokeBinding: () => Promise<WeChatBindingStatus>
+      routeMessage: (text: string) => Promise<WeChatRouteReceipt>
+    }
+    longclawPluginDev: {
+      listIssues: () => Promise<PluginDevIssue[]>
+      listReceipts: () => Promise<WeChatRouteReceipt[]>
+      startImplementation: (issueId: string) => Promise<PluginDevIssue>
+      runCi: (issueId: string) => Promise<PluginDevIssue>
+      merge: (issueId: string) => Promise<PluginDevIssue>
+      registerArtifact: (issueId: string) => Promise<PluginDevIssue>
+    }
     longclawCapabilitySubstrate: {
       getSummary: () => Promise<LongclawCapabilitySubstrateSummary>
     }
@@ -513,7 +536,7 @@ function severityRank(value: string): number {
 
 function pageTitle(locale: LongclawLocale, page: Page): string {
   if (page === 'wechat') return t(locale, 'page.wechat.title')
-  if (page === 'factory') return t(locale, 'page.factory.title')
+  if (page === 'factory') return t(locale, 'page.plugins.title')
   if (page === 'execution') return t(locale, 'page.execution.title')
   if (page === 'backtest') return t(locale, 'page.backtest.title')
   return t(locale, 'page.strategy.title')
@@ -521,7 +544,7 @@ function pageTitle(locale: LongclawLocale, page: Page): string {
 
 function pageEyebrow(locale: LongclawLocale, page: Page): string {
   if (page === 'wechat') return t(locale, 'page.wechat.eyebrow')
-  if (page === 'factory') return t(locale, 'page.factory.eyebrow')
+  if (page === 'factory') return t(locale, 'page.plugins.eyebrow')
   if (page === 'execution') return t(locale, 'page.execution.eyebrow')
   if (page === 'backtest') return t(locale, 'page.backtest.eyebrow')
   return t(locale, 'page.strategy.eyebrow')
@@ -529,7 +552,7 @@ function pageEyebrow(locale: LongclawLocale, page: Page): string {
 
 function pageDescription(locale: LongclawLocale, page: Page): string {
   if (page === 'wechat') return t(locale, 'page.wechat.description')
-  if (page === 'factory') return t(locale, 'page.factory.description')
+  if (page === 'factory') return t(locale, 'page.plugins.description')
   if (page === 'execution') return t(locale, 'page.execution.description')
   if (page === 'backtest') return t(locale, 'page.backtest.description')
   return t(locale, 'page.strategy.description')
@@ -568,7 +591,7 @@ function localizePackNotice(locale: LongclawLocale, notice?: string | null): str
   if (normalized === 'fetch failed' || normalized === 'failed to fetch') {
     return t(locale, 'notice.pack_fetch_failed')
   }
-  return notice.trim()
+  return localizeSystemText(locale, notice)
 }
 
 function readMetadataString(
@@ -1027,7 +1050,7 @@ export function formatLaunchFailureMessage(
   locale: LongclawLocale,
   error: unknown,
   runtimeStatus: RuntimeStatusSummary,
-  workMode: WorkMode,
+  _workMode: WorkMode,
 ): string {
   const rawMessage = error instanceof Error ? error.message : String(error)
   const stackEnvPath = runtimeStatus.stackEnvPath?.trim() || '~/.longclaw/runtime-v2/stack.env'
@@ -1039,24 +1062,16 @@ export function formatLaunchFailureMessage(
   }
 
   if (locale === 'zh-CN') {
-    const modeHint =
-      workMode === 'local'
-        ? '当前本机处理仍会先经过 Longclaw Core 建立 task。'
-        : '当前模式依赖 Longclaw Core。'
     if (controlPlaneBaseUrl) {
-      return `Longclaw Core 当前不可达：${controlPlaneBaseUrl}。${modeHint}请先启动 Hermes Agent OS，或检查 ${stackEnvPath} 里的 LONGCLAW_AGENT_OS_BASE_URL。原始错误：${rawMessage}`
+      return `Longclaw Core 不可达：${controlPlaneBaseUrl}。启动 Hermes Agent OS，或检查 ${stackEnvPath}。`
     }
-    return `Longclaw Core 尚未配置。${modeHint}请检查 ${stackEnvPath} 里的 LONGCLAW_AGENT_OS_BASE_URL 或 LONGCLAW_HERMES_AGENT_OS_BASE_URL。原始错误：${rawMessage}`
+    return `Longclaw Core 未配置。检查 ${stackEnvPath}。`
   }
 
-  const modeHint =
-    workMode === 'local'
-      ? 'Local handling still goes through Longclaw Core to create the task first.'
-      : 'This mode depends on Longclaw Core.'
   if (controlPlaneBaseUrl) {
-    return `Longclaw Core is unreachable at ${controlPlaneBaseUrl}. ${modeHint} Start Hermes Agent OS, or check LONGCLAW_AGENT_OS_BASE_URL in ${stackEnvPath}. Raw error: ${rawMessage}`
+    return `Longclaw Core is unreachable at ${controlPlaneBaseUrl}. Start Hermes Agent OS, or check ${stackEnvPath}.`
   }
-  return `Longclaw Core is not configured. ${modeHint} Check LONGCLAW_AGENT_OS_BASE_URL or LONGCLAW_HERMES_AGENT_OS_BASE_URL in ${stackEnvPath}. Raw error: ${rawMessage}`
+  return `Longclaw Core is not configured. Check ${stackEnvPath}.`
 }
 
 function workModeAvailabilityState(
@@ -1775,6 +1790,7 @@ export default function App() {
   const [dashboard, setDashboard] = useState<LongclawPackDashboard | null>(null)
   const [selected, setSelected] = useState<DetailTarget | null>(null)
   const [selectedArtifacts, setSelectedArtifacts] = useState<LongclawArtifact[]>([])
+  const previousPageRef = useRef<Page>('strategy')
   const [preview, setPreview] = useState<{ uri: string; text: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1799,6 +1815,10 @@ export default function App() {
   const [weclawSessions, setWeclawSessions] = useState<WeclawSessionSummary[]>([])
   const [weclawSessionSourceStatus, setWeclawSessionSourceStatus] =
     useState<WeclawSessionSourceStatus | null>(null)
+  const [wechatBindingStatus, setWechatBindingStatus] =
+    useState<WeChatBindingStatus | null>(null)
+  const [wechatRouteReceipts, setWechatRouteReceipts] = useState<WeChatRouteReceipt[]>([])
+  const [pluginDevIssues, setPluginDevIssues] = useState<PluginDevIssue[]>([])
   const [locale, setLocale] = useState<LongclawLocale>(() => {
     try {
       return window.localStorage.getItem('longclaw.locale') === 'en-US' ? 'en-US' : 'zh-CN'
@@ -1841,6 +1861,10 @@ export default function App() {
     [selected, threadSidebarOpen, viewportTier, viewportWidth],
   )
   const isFullBleedPackPage = page === 'strategy' || page === 'backtest'
+  const isWeChatPage = page === 'wechat'
+  const hideContextSidebar = isFullBleedPackPage || page === 'execution' || page === 'factory' || page === 'wechat'
+  const wechatBound = wechatBindingStatus?.state === 'bound'
+  const wechatIdentityReady = wechatBindingStatus?.identity_status === 'ilink_verified'
   const runtimeStatus = useMemo(
     () => runtimeStatusFromSummary(substrateSummary),
     [substrateSummary],
@@ -1975,6 +1999,25 @@ export default function App() {
     }
   }, [])
 
+  const loadWechatRuntime = useCallback(async () => {
+    const [bindingResult, receiptResult, issueResult] = await Promise.allSettled([
+      window.longclawWechat.getBindingStatus(),
+      window.longclawPluginDev.listReceipts(),
+      window.longclawPluginDev.listIssues(),
+    ])
+    if (bindingResult.status === 'fulfilled') setWechatBindingStatus(bindingResult.value)
+    if (receiptResult.status === 'fulfilled') setWechatRouteReceipts(receiptResult.value)
+    if (issueResult.status === 'fulfilled') setPluginDevIssues(issueResult.value)
+  }, [])
+
+  useEffect(() => {
+    if (page !== 'wechat' || wechatBindingStatus?.state !== 'qr_pending') return undefined
+    const timer = window.setInterval(() => {
+      void loadWechatRuntime()
+    }, 2000)
+    return () => window.clearInterval(timer)
+  }, [loadWechatRuntime, page, wechatBindingStatus?.state])
+
   const loadCapabilitySubstrate = useCallback(async (): Promise<RuntimeStatusSummary | null> => {
     const [summaryResult, modeResult, cwdResult, skillsResult, settingsResult, registryResult] =
       await Promise.allSettled([
@@ -2062,6 +2105,13 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [selected])
+
+  useEffect(() => {
+    if (previousPageRef.current === page) return
+    previousPageRef.current = page
+    setSelected(null)
+    setSelectedArtifacts([])
+  }, [page])
 
   useEffect(() => {
     const releaseText = window.agentAPI.onText(text => {
@@ -2154,6 +2204,7 @@ export default function App() {
           loadWorkItems(),
           loadWeclawSessions(),
           loadWeclawSessionSourceStatus(),
+          loadWechatRuntime(),
           loadCapabilitySubstrate(),
         ])
       }
@@ -2161,6 +2212,7 @@ export default function App() {
         await Promise.allSettled([
           loadOverview(),
           loadLaunchTasks(),
+          loadWechatRuntime(),
           loadCapabilitySubstrate(),
           loadDashboard('signals'),
         ])
@@ -2174,6 +2226,7 @@ export default function App() {
       loadLaunchTasks,
       loadOverview,
       loadRuns,
+      loadWechatRuntime,
       loadWeclawSessionSourceStatus,
       loadWeclawSessions,
       loadWorkItems,
@@ -2663,13 +2716,13 @@ export default function App() {
           id: 'wechat',
           label: t(locale, 'nav.wechat'),
           glyph: locale === 'zh-CN' ? '微' : 'W',
-          group: 'secondary',
+          group: 'primary',
         },
         {
           id: 'factory',
-          label: t(locale, 'nav.factory'),
-          glyph: locale === 'zh-CN' ? '厂' : 'F',
-          group: 'secondary',
+          label: t(locale, 'nav.plugins'),
+          glyph: locale === 'zh-CN' ? '插' : 'P',
+          group: 'primary',
         },
       ]
       return items.map(item => ({ ...item, title: item.label }))
@@ -2731,6 +2784,53 @@ export default function App() {
       },
     ],
     [localSeatPreference, locale, runtimeStatus],
+  )
+  const railStatusItems = useMemo(
+    () => [
+      {
+        id: 'runtime',
+        label: locale === 'zh-CN' ? '运行' : 'Runtime',
+        meta: runtimeStatus.localRuntimeAvailable
+          ? runtimeStatus.localRuntimeSeat
+            ? humanizeTokenLocale(locale, runtimeStatus.localRuntimeSeat)
+            : t(locale, 'state.ready')
+          : locale === 'zh-CN'
+            ? '未就绪'
+            : 'Not ready',
+        status: runtimeStatus.localRuntimeAvailable ? 'available' : 'degraded',
+      },
+      {
+        id: 'data',
+        label: locale === 'zh-CN' ? '数据' : 'Data',
+        meta: runtimeStatus.signalsAvailable
+          ? locale === 'zh-CN'
+            ? '信号可用'
+            : 'Signals ready'
+          : locale === 'zh-CN'
+            ? '待连接'
+            : 'Pending',
+        status: runtimeStatus.signalsAvailable ? 'available' : 'degraded',
+      },
+      {
+        id: 'wechat',
+        label: locale === 'zh-CN' ? '微信' : 'WeChat',
+        meta: wechatBound
+          ? locale === 'zh-CN'
+            ? '已绑定'
+            : 'Bound'
+          : locale === 'zh-CN'
+            ? '未绑定'
+            : 'Unbound',
+        status: wechatBound ? 'open' : 'degraded',
+      },
+    ],
+    [
+      locale,
+      runtimeStatus.localRuntimeAvailable,
+      runtimeStatus.localRuntimeSeat,
+      runtimeStatus.signalsAvailable,
+      wechatBound,
+    ],
   )
   const disabledCapabilityCount = capabilityManagerSettings.disabled_capabilities.length
   const capabilityGroupsSummary = Object.entries(capabilityManagerSettings.capability_groups)
@@ -3382,6 +3482,95 @@ export default function App() {
     },
     [jumpContext, openWorkItem],
   )
+  const createWechatBindingSession = useCallback(async () => {
+    try {
+      setWechatBindingStatus(await window.longclawWechat.createBindingSession())
+      setActionMessage(locale === 'zh-CN' ? '已生成微信绑定二维码。' : 'WeChat binding QR created.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [locale])
+  const createLocalWechatBindingSession = useCallback(async () => {
+    try {
+      setWechatBindingStatus(await window.longclawWechat.createLocalBindingSession())
+      setActionMessage(locale === 'zh-CN' ? '已生成本机测试二维码。' : 'Local test QR created.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [locale])
+  const completeWechatBindingSession = useCallback(async () => {
+    try {
+      setWechatBindingStatus(await window.longclawWechat.completeBindingSession())
+      setActionMessage(locale === 'zh-CN' ? '微信扫码绑定已完成。' : 'WeChat scan binding completed.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [locale])
+  const revokeWechatBinding = useCallback(async () => {
+    const confirmed = window.confirm(
+      locale === 'zh-CN'
+        ? '确定解除当前微信绑定吗？解除后需要重新扫码才能继续使用微信入口。'
+        : 'Revoke the current WeChat binding? You will need to scan again before using the WeChat entry.',
+    )
+    if (!confirmed) return
+    try {
+      setWechatBindingStatus(await window.longclawWechat.revokeBinding())
+      setActionMessage(locale === 'zh-CN' ? '微信绑定已解除。' : 'WeChat binding revoked.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [locale])
+  const routeWechatMessage = useCallback(async (text: string) => {
+    try {
+      const receipt = await window.longclawWechat.routeMessage(text)
+      await loadWechatRuntime()
+      setActionMessage(locale === 'zh-CN' ? '已发送到路由。' : 'Route sent.')
+      if (receipt.route === 'dev_plugin') setPage('factory')
+      return receipt
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      return null
+    }
+  }, [loadWechatRuntime, locale])
+  const refreshPluginDevIssues = useCallback(async () => {
+    await loadWechatRuntime()
+  }, [loadWechatRuntime])
+  const startPluginDevIssue = useCallback(async (issueId: string) => {
+    try {
+      await window.longclawPluginDev.startImplementation(issueId)
+      await refreshPluginDevIssues()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [refreshPluginDevIssues])
+  const runPluginDevIssueCi = useCallback(async (issueId: string) => {
+    try {
+      await window.longclawPluginDev.runCi(issueId)
+      await refreshPluginDevIssues()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [refreshPluginDevIssues])
+  const mergePluginDevIssueAction = useCallback(async (issueId: string) => {
+    try {
+      await window.longclawPluginDev.merge(issueId)
+      await refreshPluginDevIssues()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [refreshPluginDevIssues])
+  const registerPluginDevIssueAction = useCallback(async (issueId: string) => {
+    try {
+      await window.longclawPluginDev.registerArtifact(issueId)
+      await refreshPluginDevIssues()
+      await loadCapabilitySubstrate()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }, [loadCapabilitySubstrate, refreshPluginDevIssues])
+  const openPluginDevIssue = useCallback((issue: PluginDevIssue) => {
+    openRecord(issue.title, issue as unknown as Record<string, unknown>)
+  }, [openRecord])
 
   return (
     <div style={shellLayout.app}>
@@ -3389,8 +3578,14 @@ export default function App() {
         <div style={railBrandStyle}>
           <div style={railMonogramStyle}>LC</div>
           <div style={railBrandLabelStyle}>{t(locale, 'app.brand')}</div>
+          <div style={railBrandCaptionStyle}>
+            {locale === 'zh-CN' ? '个人金融交易台' : 'Personal trading desk'}
+          </div>
         </div>
 
+        <div style={railModeLabelStyle}>
+          {locale === 'zh-CN' ? '五个模式' : 'Five modes'}
+        </div>
         <nav aria-label="Primary navigation" style={railNavStyle}>
           {primaryNavItems.map(item => (
             <button
@@ -3406,25 +3601,27 @@ export default function App() {
           ))}
         </nav>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={chromeStyles.eyebrowLight}>
-            {locale === 'zh-CN' ? '固定工具区' : 'Fixed tools'}
+        {secondaryNavItems.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={chromeStyles.eyebrowLight}>
+              {locale === 'zh-CN' ? '入口与能力' : 'Entries and capabilities'}
+            </div>
+            <nav aria-label="Secondary navigation" style={railNavStyle}>
+              {secondaryNavItems.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  title={item.title}
+                  style={railNavButtonStyle(page === item.id)}
+                  onClick={() => setPage(item.id)}
+                >
+                  <span style={railNavButtonGlyphStyle(page === item.id)}>{item.glyph}</span>
+                  <span style={railNavButtonLabelStyle}>{item.label}</span>
+                </button>
+              ))}
+            </nav>
           </div>
-          <nav aria-label="Secondary navigation" style={railNavStyle}>
-            {secondaryNavItems.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                title={item.title}
-                style={railNavButtonStyle(page === item.id)}
-                onClick={() => setPage(item.id)}
-              >
-                <span style={railNavButtonGlyphStyle(page === item.id)}>{item.glyph}</span>
-                <span style={railNavButtonLabelStyle}>{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
+        )}
 
         {viewportTier === 'narrow' && (
           <button
@@ -3440,6 +3637,15 @@ export default function App() {
         )}
 
         <div style={{ marginTop: 'auto' }} />
+        <div style={railStatusStackStyle} aria-label={locale === 'zh-CN' ? '交易台状态' : 'Desk status'}>
+          {railStatusItems.map(item => (
+            <div key={item.id} style={railStatusItemStyle} title={`${item.label}: ${item.meta}`}>
+              <span style={railStatusSignalStyle(item.status)} aria-hidden="true" />
+              <div style={railStatusLabelStyle}>{item.label}</div>
+              <div style={railStatusMetaStyle}>{item.meta}</div>
+            </div>
+          ))}
+        </div>
       </aside>
 
       {shellLayout.threadBackdrop && (
@@ -3453,38 +3659,85 @@ export default function App() {
 
       <aside
         style={
-          isFullBleedPackPage
+          hideContextSidebar
             ? { ...shellLayout.threadSidebar, display: 'none' }
-            : shellLayout.threadSidebar
+            : isWeChatPage
+              ? wechatThreadSidebarShellStyle(shellLayout.threadSidebar)
+              : shellLayout.threadSidebar
         }
       >
         <div style={threadSidebarSectionStyle}>
-          <div style={threadSidebarSectionHeaderStyle}>
-            <div>
-              <div style={chromeStyles.eyebrowLight}>{t(locale, 'context.workspace_root')}</div>
-              <div style={threadSidebarHeadingStyle}>
-                {agentCwd ? agentCwd.split('/').filter(Boolean).slice(-2).join('/') : t(locale, 'context.workspace_pending')}
+          {isWeChatPage ? (
+            <>
+              <div style={threadSidebarSectionHeaderStyle}>
+                <div>
+                  <div style={wechatSidebarEyebrowStyle}>
+                    {locale === 'zh-CN' ? '移动入口' : 'Mobile entry'}
+                  </div>
+                  <div style={wechatSidebarHeadingStyle}>
+                    {locale === 'zh-CN' ? '微信入口' : 'WeChat entry'}
+                  </div>
+                </div>
+                <span style={statusBadgeStyle(wechatBound ? 'open' : 'degraded')}>
+                  {wechatBound ? t(locale, 'state.ready') : locale === 'zh-CN' ? '未绑定' : 'Unbound'}
+                </span>
               </div>
-            </div>
-            <button
-              type="button"
-              style={buttonStyleForState(secondaryButtonStyle, loading)}
-              disabled={loading}
-              onClick={() => {
-                void refresh(page)
-              }}
-            >
-              {loading ? t(locale, 'action.refreshing') : t(locale, 'action.refresh')}
-            </button>
-          </div>
-          <div style={threadSidebarWorkspaceCardStyle}>
-            <div style={threadSidebarWorkspaceValueStyle}>
-              {agentCwd ? agentCwd.split('/').filter(Boolean).slice(-1)[0] : t(locale, 'context.workspace_not_resolved')}
-            </div>
-            <div style={chromeStyles.monoMeta}>
-              {agentCwd || t(locale, 'context.workspace_not_resolved')}
-            </div>
-          </div>
+              <div style={wechatSidebarCardStyle}>
+                <div style={wechatSidebarCardValueStyle}>
+                  {wechatBound
+                    ? locale === 'zh-CN'
+                      ? '已绑定微信用户'
+                      : 'WeChat user bound'
+                    : locale === 'zh-CN'
+                      ? '等待扫码绑定'
+                      : 'Waiting for QR binding'}
+                </div>
+                <div style={wechatSidebarMetaStyle}>
+                  {formatModeMeta([
+                    wechatIdentityReady
+                      ? locale === 'zh-CN'
+                        ? '扫码认证已完成'
+                        : 'QR identity verified'
+                      : locale === 'zh-CN'
+                        ? '扫码后启用入站路由'
+                        : 'Inbound routing unlocks after scan',
+                    locale === 'zh-CN'
+                      ? `${wechatBindingStatus?.allowed_routes.length ?? 0} 个入口`
+                      : `${wechatBindingStatus?.allowed_routes.length ?? 0} routes`,
+                  ])}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={threadSidebarSectionHeaderStyle}>
+                <div>
+                  <div style={chromeStyles.eyebrowLight}>{t(locale, 'context.workspace_root')}</div>
+                  <div style={threadSidebarHeadingStyle}>
+                    {agentCwd ? agentCwd.split('/').filter(Boolean).slice(-2).join('/') : t(locale, 'context.workspace_pending')}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  style={buttonStyleForState(secondaryButtonStyle, loading)}
+                  disabled={loading}
+                  onClick={() => {
+                    void refresh(page)
+                  }}
+                >
+                  {loading ? t(locale, 'action.refreshing') : t(locale, 'action.refresh')}
+                </button>
+              </div>
+              <div style={threadSidebarWorkspaceCardStyle}>
+                <div style={threadSidebarWorkspaceValueStyle}>
+                  {agentCwd ? agentCwd.split('/').filter(Boolean).slice(-1)[0] : t(locale, 'context.workspace_not_resolved')}
+                </div>
+                <div style={chromeStyles.monoMeta}>
+                  {agentCwd || t(locale, 'context.workspace_not_resolved')}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div style={threadSidebarSectionStyle}>
@@ -3492,8 +3745,8 @@ export default function App() {
             <>
               <div style={threadSidebarSectionHeaderStyle}>
                 <div>
-                  <div style={chromeStyles.eyebrowLight}>{t(locale, 'section.wechat_sessions.source.title')}</div>
-                  <div style={threadSidebarHeadingStyle}>{t(locale, 'page.wechat.title')}</div>
+                  <div style={wechatSidebarEyebrowStyle}>{t(locale, 'section.wechat_sessions.source.title')}</div>
+                  <div style={wechatSidebarHeadingStyle}>{t(locale, 'page.wechat.title')}</div>
                 </div>
                 <span
                   style={statusBadgeStyle(
@@ -3504,32 +3757,32 @@ export default function App() {
                 </span>
               </div>
               <div style={threadSidebarQuickListStyle}>
-                <div style={threadRowMetaStyle}>
-                  {weclawSessionSourceStatus?.sessionsDir ??
-                    weclawSessionSourceStatus?.workspaceRoot ??
-                    t(locale, 'empty.weclaw_sessions_dir_missing')}
+                <div style={wechatSidebarMetaStyle}>
+                  {locale === 'zh-CN'
+                    ? '仅展示最近入站与审计队列，不暴露本地目录。'
+                    : 'Shows recent inbound and audit queue without local paths.'}
                 </div>
                 {(filteredWeclawSessions.length === 0 ? [] : filteredWeclawSessions.slice(0, 5)).map(session => (
                   <button
                     key={session.sessionId}
                     type="button"
-                    style={threadSidebarMiniRowStyle}
+                    style={wechatSidebarMiniRowStyle}
                     onClick={() => {
                       setSelectedWeclawSessionId(session.sessionId)
                       void openWeclawSession(session.sessionId)
                     }}
                   >
-                    <div style={threadMiniTitleStyle}>{session.title}</div>
-                    <div style={threadRowMetaStyle}>
+                    <div style={wechatSidebarMiniTitleStyle}>{session.title}</div>
+                    <div style={wechatSidebarMetaStyle}>
                       {formatModeMeta([
-                        session.userId,
+                        session.sourceLabel,
                         session.updatedAt ? formatTime(session.updatedAt) : undefined,
                       ])}
                     </div>
                   </button>
                 ))}
                 {filteredWeclawSessions.length === 0 && (
-                  <div style={utilityStyles.emptyState}>
+                  <div style={wechatSidebarEmptyStyle}>
                     {weclawEmptyStateMessage(locale, weclawSessionSourceStatus)}
                   </div>
                 )}
@@ -3541,7 +3794,7 @@ export default function App() {
             <>
               <div style={threadSidebarSectionHeaderStyle}>
                 <div>
-                  <div style={chromeStyles.eyebrowLight}>{t(locale, 'nav.factory')}</div>
+                  <div style={chromeStyles.eyebrowLight}>{t(locale, 'nav.plugins')}</div>
                   <div style={threadSidebarHeadingStyle}>{t(locale, 'sidebar.capability_groups')}</div>
                 </div>
                 <span style={statusBadgeStyle(disabledCapabilityCount > 0 ? 'degraded' : 'open')}>
@@ -3625,8 +3878,11 @@ export default function App() {
                   ? [
                       ...(dashboard.connector_health ?? []).slice(0, 3).map(item => ({
                         id: String(item.connector_id ?? 'connector'),
-                        title: String(item.connector_id ?? 'connector'),
-                        meta: [item.status, item.summary].filter(Boolean).join(' · '),
+                        title: humanizeTokenLocale(locale, String(item.connector_id ?? 'connector')),
+                        meta: [
+                          humanizeTokenLocale(locale, String(item.status ?? '')),
+                          localizeSystemText(locale, String(item.summary ?? '')),
+                        ].filter(Boolean).join(' · '),
                       })),
                     ]
                   : []
@@ -3671,8 +3927,10 @@ export default function App() {
         <div style={shellLayout.mainWorkspace}>
           {(error || actionMessage) && (
             <div style={workspaceBannerRowStyle}>
-              {error && <div style={utilityStyles.errorBanner}>{error}</div>}
-              {!error && actionMessage && <div style={utilityStyles.noticeBanner}>{actionMessage}</div>}
+              {error && <div style={utilityStyles.errorBanner}>{localizeSystemText(locale, error)}</div>}
+              {!error && actionMessage && (
+                <div style={utilityStyles.noticeBanner}>{localizeSystemText(locale, actionMessage)}</div>
+              )}
             </div>
           )}
 
@@ -3680,20 +3938,33 @@ export default function App() {
             style={
               isFullBleedPackPage
                 ? strategyWorkspaceScrollStyle
+                : isWeChatPage
+                  ? wechatWorkspaceScrollStyle
                 : workspaceScrollStyle
             }
           >
             {!isFullBleedPackPage && (
-              <div style={pageHeaderShellStyle}>
+              <div style={isWeChatPage ? wechatPageHeaderShellStyle : pageHeaderShellStyle}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={chromeStyles.eyebrow}>{pageEyebrow(locale, page)}</div>
-                  <h1 style={chromeStyles.headerTitle}>{pageHeading}</h1>
-                  <div style={chromeStyles.subtleText}>{pageDescription(locale, page)}</div>
+                  <div style={isWeChatPage ? wechatPageEyebrowStyle : chromeStyles.eyebrow}>
+                    {pageEyebrow(locale, page)}
+                  </div>
+                  <h1 style={isWeChatPage ? wechatPageTitleStyle : chromeStyles.headerTitle}>
+                    {pageHeading}
+                  </h1>
+                  {viewportTier === 'wide' && (
+                    <div style={isWeChatPage ? wechatPageDescriptionStyle : chromeStyles.subtleText}>
+                      {pageDescription(locale, page)}
+                    </div>
+                  )}
                 </div>
                 <div style={utilityStyles.buttonCluster}>
                   <button
                     type="button"
-                    style={buttonStyleForState(secondaryButtonStyle, loading)}
+                    style={buttonStyleForState(
+                      isWeChatPage ? wechatSecondaryButtonStyle : secondaryButtonStyle,
+                      loading,
+                    )}
                     disabled={loading}
                     onClick={() => {
                       void refresh(page)
@@ -3730,7 +4001,6 @@ export default function App() {
                   surface="strategy"
                   dashboard={dashboard}
                   signalsWebBaseUrl={runtimeStatus.signalsWebBaseUrl}
-                  signalsWeb2BaseUrl={runtimeStatus.signalsWeb2BaseUrl}
                   localizedNotice={localizedDashboardNotice}
                   onRunAction={runAction}
                   onOpenRun={openRun}
@@ -3744,7 +4014,6 @@ export default function App() {
                   surface="backtest"
                   dashboard={dashboard}
                   signalsWebBaseUrl={runtimeStatus.signalsWebBaseUrl}
-                  signalsWeb2BaseUrl={runtimeStatus.signalsWeb2BaseUrl}
                   localizedNotice={localizedDashboardNotice}
                   onRunAction={runAction}
                   onOpenRun={openRun}
@@ -3801,16 +4070,6 @@ export default function App() {
                         </div>
                       </Section>
                     )}
-                  <PackWorkspace
-                    locale={locale}
-                    surface="execution"
-                    dashboard={dashboard}
-                    signalsWebBaseUrl={runtimeStatus.signalsWebBaseUrl}
-                    localizedNotice={localizedDashboardNotice}
-                    onRunAction={runAction}
-                    onOpenRun={openRun}
-                    onOpenRecord={openRecord}
-                  />
                   <ExecutionConsole
                     locale={locale}
                     taskFlowFilter={taskFlowFilter}
@@ -3840,6 +4099,9 @@ export default function App() {
                   viewportTier={viewportTier}
                   sessions={weclawSessions}
                   sourceStatus={weclawSessionSourceStatus}
+                  bindingStatus={wechatBindingStatus}
+                  routeReceipts={wechatRouteReceipts}
+                  pluginDevIssues={pluginDevIssues}
                   search={wechatSearch}
                   sourceFilter={wechatSourceFilter}
                   visibilityFilter={wechatVisibilityFilter}
@@ -3874,6 +4136,12 @@ export default function App() {
                   onOpenLinkedRun={openWeclawLinkedRun}
                   onOpenLinkedWorkItem={openWeclawLinkedWorkItem}
                   onOpenAttachment={openArtifact}
+                  onCreateBindingSession={createWechatBindingSession}
+                  onCreateLocalBindingSession={createLocalWechatBindingSession}
+                  onCompleteBindingSession={completeWechatBindingSession}
+                  onRevokeBinding={revokeWechatBinding}
+                  onRouteMessage={routeWechatMessage}
+                  onOpenPluginIssue={openPluginDevIssue}
                 />
               )}
 
@@ -3896,6 +4164,7 @@ export default function App() {
                     capabilitySkillGroups={capabilitySkillGroups}
                     managedPluginEntries={managedPluginEntries}
                     managedRegistryEntries={managedRegistryEntries}
+                    pluginDevIssues={pluginDevIssues}
                     capabilityManagerSettings={capabilityManagerSettings}
                     managedSkillPathDraft={managedSkillPathDraft}
                     onManagedSkillPathDraftChange={setManagedSkillPathDraft}
@@ -3915,23 +4184,18 @@ export default function App() {
                     copyCapabilityMention={copyCapabilityMention}
                     addDiscoveryRoot={addDiscoveryRoot}
                     removeDiscoveryRoot={removeDiscoveryRoot}
-                  />
-                  <PackWorkspace
-                    locale={locale}
-                    surface="factory"
-                    dashboard={dashboard}
-                    signalsWebBaseUrl={runtimeStatus.signalsWebBaseUrl}
-                    localizedNotice={localizedDashboardNotice}
-                    onRunAction={runAction}
-                    onOpenRun={openRun}
-                    onOpenRecord={openRecord}
+                    openPluginDevIssue={openPluginDevIssue}
+                    startPluginDevIssue={startPluginDevIssue}
+                    runPluginDevIssueCi={runPluginDevIssueCi}
+                    mergePluginDevIssue={mergePluginDevIssueAction}
+                    registerPluginDevIssue={registerPluginDevIssueAction}
                   />
                 </>
               )}
             </div>
           </div>
 
-          {!isFullBleedPackPage && (
+          {!isWeChatPage && (
           <aside aria-label={t(locale, 'section.detail.drawer')} style={shellLayout.detailPane}>
             {selected ? (
               <div style={pageStackStyle}>
@@ -4122,6 +4386,46 @@ export default function App() {
 
                 {selected.type === 'record' && (
                   <>
+                    {(readMetadataString(selected.record, 'status') ||
+                      readMetadataString(selected.record, 'summary') ||
+                      readMetadataString(selected.record, 'connector_id')) && (
+                      <Section
+                        title={locale === 'zh-CN' ? '摘要' : 'Summary'}
+                        subtitle={locale === 'zh-CN' ? '关键状态。' : 'Key status.'}
+                      >
+                        <div style={utilityStyles.stackedList}>
+                          {readMetadataString(selected.record, 'status') && (
+                            <span
+                              style={statusBadgeStyle(
+                                readMetadataString(selected.record, 'status') ?? 'info',
+                              )}
+                            >
+                              {humanizeTokenLocale(
+                                locale,
+                                readMetadataString(selected.record, 'status'),
+                              )}
+                            </span>
+                          )}
+                          {readMetadataString(selected.record, 'connector_id') && (
+                            <div style={chromeStyles.quietMeta}>
+                              {locale === 'zh-CN' ? '连接器' : 'Connector'}:{' '}
+                              {humanizeTokenLocale(
+                                locale,
+                                readMetadataString(selected.record, 'connector_id'),
+                              )}
+                            </div>
+                          )}
+                          {readMetadataString(selected.record, 'summary') && (
+                            <div style={workItemSummaryStyle}>
+                              {localizeSystemText(
+                                locale,
+                                readMetadataString(selected.record, 'summary'),
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </Section>
+                    )}
                     {(readMetadataString(selected.record, 'work_mode') ||
                       readMetadataString(selected.record, 'runtime_target') ||
                       readMetadataString(selected.record, 'interaction_surface') ||
@@ -4179,20 +4483,25 @@ export default function App() {
                         </div>
                       </Section>
                     )}
-                    <Section
-                      title={t(locale, 'section.detail.operator_actions.title')}
-                      subtitle={t(locale, 'section.detail.operator_actions.subtitle')}
-                    >
-                      <ActionButtons actions={selected.actions} onRun={runAction} />
-                    </Section>
-                    <Section
-                      title={t(locale, 'section.detail.record_payload.title')}
-                      subtitle={t(locale, 'section.detail.record_payload.subtitle')}
-                    >
+                    {selected.actions.length > 0 && (
+                      <Section
+                        title={t(locale, 'section.detail.operator_actions.title')}
+                        subtitle={t(locale, 'section.detail.operator_actions.subtitle')}
+                      >
+                        <ActionButtons actions={selected.actions} onRun={runAction} />
+                      </Section>
+                    )}
+                    <details style={detailDisclosureStyle}>
+                      <summary style={detailDisclosureSummaryStyle}>
+                        {t(locale, 'section.detail.record_payload.title')}
+                      </summary>
+                      <div style={chromeStyles.quietMeta}>
+                        {t(locale, 'section.detail.record_payload.subtitle')}
+                      </div>
                       <pre style={surfaceStyles.drawerPre}>
                         {JSON.stringify(selected.record, null, 2)}
                       </pre>
-                    </Section>
+                    </details>
                   </>
                 )}
 
@@ -4452,6 +4761,8 @@ export default function App() {
   )
 }
 
+const wechatShellPalette = tradingDeskTheme.colors
+
 const pageStackStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -4525,6 +4836,16 @@ const detailHeaderStyle: React.CSSProperties = {
   gap: 12,
 }
 
+const detailDisclosureStyle: React.CSSProperties = {
+  ...surfaceStyles.section,
+}
+
+const detailDisclosureSummaryStyle: React.CSSProperties = {
+  ...chromeStyles.sectionTitle,
+  cursor: 'pointer',
+  listStyle: 'none',
+}
+
 const workItemSummaryStyle: React.CSSProperties = {
   color: palette.ink,
   lineHeight: 1.55,
@@ -4533,30 +4854,55 @@ const workItemSummaryStyle: React.CSSProperties = {
 const railBrandStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  alignItems: 'center',
-  gap: 10,
+  alignItems: 'stretch',
+  gap: 6,
+  paddingBottom: 2,
 }
 
 const railMonogramStyle: React.CSSProperties = {
-  width: 42,
-  height: 42,
-  borderRadius: 14,
-  background: 'rgba(247, 242, 232, 0.12)',
-  border: '1px solid rgba(247, 242, 232, 0.16)',
-  color: palette.paper,
+  width: 38,
+  height: 38,
+  borderRadius: 12,
+  background: tradingDeskTheme.gradients.island,
+  border: `1px solid ${tradingDeskTheme.alpha.textBorderStrong}`,
+  color: palette.ink,
   display: 'grid',
   placeItems: 'center',
-  fontFamily: '"IBM Plex Mono", monospace',
+  boxShadow: tradingDeskTheme.shadows.island,
+  fontFamily: fontStacks.mono,
   fontSize: 14,
   fontWeight: 700,
   letterSpacing: '0.08em',
 }
 
 const railBrandLabelStyle: React.CSSProperties = {
-  color: 'rgba(247, 242, 232, 0.72)',
-  fontSize: 11,
+  color: tradingDeskTheme.colors.text,
+  fontSize: 13,
   lineHeight: 1.35,
+  textAlign: 'left',
+  fontWeight: 700,
+  whiteSpace: 'normal',
+}
+
+const railBrandCaptionStyle: React.CSSProperties = {
+  color: tradingDeskTheme.colors.muted,
+  fontSize: 10.5,
+  fontWeight: 600,
+  lineHeight: 1.25,
+  textAlign: 'left',
+  maxWidth: 108,
+}
+
+const railModeLabelStyle: React.CSSProperties = {
+  display: 'none',
+  color: tradingDeskTheme.colors.muted,
+  fontFamily: fontStacks.mono,
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: '0.08em',
+  lineHeight: 1,
   textAlign: 'center',
+  textTransform: 'uppercase',
 }
 
 const railNavStyle: React.CSSProperties = {
@@ -4567,83 +4913,115 @@ const railNavStyle: React.CSSProperties = {
 
 function railNavButtonStyle(active: boolean): React.CSSProperties {
   return {
-    borderRadius: 16,
-    border: `1px solid ${active ? 'rgba(247, 242, 232, 0.16)' : 'transparent'}`,
-    background: active ? 'rgba(247, 242, 232, 0.12)' : 'transparent',
-    color: active ? palette.paper : 'rgba(247, 242, 232, 0.74)',
-    minHeight: 52,
-    padding: '10px 8px',
+    borderRadius: 11,
+    border: `1px solid ${active ? tradingDeskTheme.alpha.textBorderStrong : 'transparent'}`,
+    background: active
+      ? tradingDeskTheme.gradients.island
+      : tradingDeskTheme.alpha.panelWash,
+    color: active ? palette.ink : tradingDeskTheme.colors.text,
+    minHeight: 38,
+    padding: '6px 7px',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    textAlign: 'center',
+    justifyContent: 'flex-start',
+    gap: 8,
+    textAlign: 'left',
     cursor: 'pointer',
+    boxShadow: active
+      ? tradingDeskTheme.shadows.island
+      : 'inset 0 1px rgba(255, 255, 255, 0.02)',
+    transition:
+      'background 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out, box-shadow 160ms ease-out, transform 160ms ease-out, filter 160ms ease-out',
   }
 }
 
 function railNavButtonGlyphStyle(active: boolean): React.CSSProperties {
   return {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
+    width: 25,
+    height: 25,
+    borderRadius: 9,
+    flexShrink: 0,
     display: 'grid',
     placeItems: 'center',
-    background: active ? 'rgba(247, 242, 232, 0.18)' : 'rgba(247, 242, 232, 0.08)',
-    border: `1px solid ${active ? 'rgba(247, 242, 232, 0.2)' : 'rgba(247, 242, 232, 0.06)'}`,
-    color: palette.paper,
-    fontFamily: '"IBM Plex Mono", monospace',
-    fontSize: 12,
+    background: active ? tradingDeskTheme.alpha.accentSurface : tradingDeskTheme.alpha.panelWash,
+    border: `1px solid ${active ? tradingDeskTheme.alpha.accentBorder : tradingDeskTheme.alpha.textHairline}`,
+    color: active ? tradingDeskTheme.colors.accentText : palette.ink,
+    boxShadow: active ? 'inset 0 0 0 1px rgba(255, 184, 107, 0.16)' : undefined,
+    fontFamily: fontStacks.mono,
+    fontSize: 11,
     fontWeight: 700,
     lineHeight: 1,
   }
 }
 
 const railNavButtonLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  lineHeight: 1.25,
-  fontWeight: 600,
-  whiteSpace: 'normal',
+  fontSize: 12.5,
+  lineHeight: 1.15,
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 }
 
 const railStatusStackStyle: React.CSSProperties = {
   display: 'flex',
-  flexDirection: 'column',
-  gap: 10,
+  flexDirection: 'row',
+  gap: 6,
 }
 
 const railStatusItemStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  gap: 6,
-  padding: '10px 8px',
-  borderRadius: 16,
-  background: 'rgba(247, 242, 232, 0.06)',
-  border: '1px solid rgba(247, 242, 232, 0.08)',
+  justifyContent: 'center',
+  gap: 5,
+  flex: 1,
+  minWidth: 0,
+  padding: '6px 5px',
+  borderRadius: 10,
+  background: tradingDeskTheme.alpha.panelWash,
+  border: `1px solid ${tradingDeskTheme.alpha.textHairline}`,
+  boxShadow: 'inset 0 1px rgba(255, 255, 255, 0.035)',
+}
+
+function railStatusSignalStyle(status: string): React.CSSProperties {
+  const isHealthy = ['available', 'open', 'connected', 'ready'].includes(status)
+  return {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    background: isHealthy ? 'rgba(75, 191, 126, 0.95)' : 'rgba(199, 146, 47, 0.95)',
+    boxShadow: isHealthy
+      ? '0 0 0 4px rgba(75, 191, 126, 0.12)'
+      : '0 0 0 4px rgba(199, 146, 47, 0.12)',
+  }
 }
 
 const railStatusLabelStyle: React.CSSProperties = {
-  color: palette.paper,
-  fontSize: 11,
+  color: palette.ink,
+  fontSize: 10.5,
   lineHeight: 1.25,
   textAlign: 'center',
+  fontWeight: 700,
 }
 
 const railStatusMetaStyle: React.CSSProperties = {
-  color: 'rgba(247, 242, 232, 0.48)',
+  display: 'none',
+  color: tradingDeskTheme.colors.muted,
   fontSize: 10,
   lineHeight: 1.3,
-  textAlign: 'center',
-  wordBreak: 'break-word',
+  textAlign: 'left',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 }
 
 const threadSidebarSectionStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: 12,
-  padding: '20px 18px 0',
+  gap: 10,
+  padding: '16px 14px 0',
 }
 
 const threadSidebarSectionHeaderStyle: React.CSSProperties = {
@@ -4658,6 +5036,45 @@ const threadSidebarHeadingStyle: React.CSSProperties = {
   fontSize: 17,
   lineHeight: 1.25,
   fontWeight: 600,
+}
+
+const wechatSidebarEyebrowStyle: React.CSSProperties = {
+  color: tradingDeskTheme.colors.mutedStrong,
+  fontSize: 11,
+  lineHeight: 1.2,
+  fontWeight: 700,
+  letterSpacing: 0,
+  textTransform: 'uppercase',
+}
+
+const wechatSidebarHeadingStyle: React.CSSProperties = {
+  color: wechatShellPalette.textStrong,
+  fontSize: 17,
+  lineHeight: 1.25,
+  fontWeight: 700,
+}
+
+const wechatSidebarCardStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  padding: '12px 13px',
+  borderRadius: 5,
+  border: `1px solid ${wechatShellPalette.border}`,
+  background: wechatShellPalette.panel,
+}
+
+const wechatSidebarCardValueStyle: React.CSSProperties = {
+  color: wechatShellPalette.textStrong,
+  fontSize: 14,
+  lineHeight: 1.35,
+  fontWeight: 700,
+}
+
+const wechatSidebarMetaStyle: React.CSSProperties = {
+  color: wechatShellPalette.muted,
+  fontSize: 12,
+  lineHeight: 1.4,
 }
 
 const threadSidebarQuickStackStyle: React.CSSProperties = {
@@ -4675,8 +5092,8 @@ const threadSidebarWorkspaceCardStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 6,
-  padding: '12px 13px',
-  borderRadius: 16,
+  padding: '10px 11px',
+  borderRadius: 12,
   border: `1px solid ${palette.border}`,
   background: palette.panelRaised,
 }
@@ -4702,8 +5119,8 @@ function threadRowStyle(active: boolean): React.CSSProperties {
     gap: 8,
     padding: '12px 13px',
     borderRadius: 16,
-    border: `1px solid ${active ? 'rgba(184, 100, 59, 0.32)' : palette.border}`,
-    background: active ? 'rgba(184, 100, 59, 0.08)' : palette.panelRaised,
+    border: `1px solid ${active ? tradingDeskTheme.alpha.accentBorder : palette.border}`,
+    background: active ? tradingDeskTheme.alpha.accentSurface : palette.panelRaised,
     textAlign: 'left',
     cursor: 'pointer',
   }
@@ -4747,11 +5164,36 @@ const threadSidebarMiniRowStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+const wechatSidebarMiniRowStyle: React.CSSProperties = {
+  ...threadSidebarMiniRowStyle,
+  borderRadius: 5,
+  border: `1px solid ${wechatShellPalette.border}`,
+  background: wechatShellPalette.panelSoft,
+}
+
 const threadMiniTitleStyle: React.CSSProperties = {
   color: palette.ink,
   fontSize: 13,
   lineHeight: 1.35,
   fontWeight: 600,
+}
+
+const wechatSidebarMiniTitleStyle: React.CSSProperties = {
+  color: wechatShellPalette.textStrong,
+  fontSize: 13,
+  lineHeight: 1.35,
+  fontWeight: 700,
+}
+
+const wechatSidebarEmptyStyle: React.CSSProperties = {
+  border: `1px dashed ${wechatShellPalette.borderStrong}`,
+  borderRadius: 5,
+  background: wechatShellPalette.panel,
+  color: wechatShellPalette.muted,
+  padding: '12px 10px',
+  textAlign: 'center',
+  fontSize: 13,
+  lineHeight: 1.4,
 }
 
 const workspaceBannerRowStyle: React.CSSProperties = {
@@ -4765,7 +5207,7 @@ const threadHeaderStyle: React.CSSProperties = {
   gap: 18,
   padding: '22px 24px 16px',
   borderBottom: `1px solid ${palette.border}`,
-  background: 'rgba(251, 247, 240, 0.72)',
+  background: 'rgba(21, 31, 45, 0.72)',
   backdropFilter: 'blur(14px)',
 }
 
@@ -4814,11 +5256,11 @@ function conversationEventStyle(type: ConversationEvent['type']): React.CSSPrope
     gap: 10,
     padding: userLaunch ? '16px 18px' : '14px 16px',
     borderRadius: 20,
-    border: `1px solid ${userLaunch ? 'rgba(184, 100, 59, 0.22)' : palette.border}`,
-    background: userLaunch ? 'rgba(184, 100, 59, 0.08)' : palette.panelRaised,
+    border: `1px solid ${userLaunch ? tradingDeskTheme.alpha.accentBorder : palette.border}`,
+    background: userLaunch ? tradingDeskTheme.alpha.accentSurface : palette.panelRaised,
     textAlign: 'left',
     cursor: 'pointer',
-    boxShadow: userLaunch ? '0 12px 28px rgba(23, 26, 31, 0.05)' : 'none',
+    boxShadow: userLaunch ? tradingDeskTheme.shadows.glow : 'none',
   }
 }
 
@@ -4835,7 +5277,7 @@ const conversationEventTypeStyle: React.CSSProperties = {
   lineHeight: 1.2,
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
-  fontFamily: '"IBM Plex Mono", monospace',
+  fontFamily: fontStacks.mono,
 }
 
 const conversationEventTitleStyle: React.CSSProperties = {
@@ -4861,16 +5303,17 @@ const conversationEventMetaStyle: React.CSSProperties = {
 const composerDockStyle: React.CSSProperties = {
   padding: '0 24px 22px',
   borderTop: `1px solid ${palette.border}`,
-  background: 'linear-gradient(180deg, rgba(247, 242, 232, 0) 0%, rgba(247, 242, 232, 0.78) 32%, rgba(247, 242, 232, 0.98) 100%)',
+  background:
+    'linear-gradient(180deg, rgba(8, 11, 18, 0) 0%, rgba(8, 11, 18, 0.78) 32%, rgba(8, 11, 18, 0.98) 100%)',
 }
 
 const composerSurfaceStyle: React.CSSProperties = {
   marginTop: 14,
   padding: 14,
-  borderRadius: 24,
+  borderRadius: tradingDeskTheme.radius.island,
   border: `1px solid ${palette.borderStrong}`,
   background: palette.panelRaised,
-  boxShadow: '0 18px 40px rgba(23, 26, 31, 0.08)',
+  boxShadow: tradingDeskTheme.shadows.panel,
   display: 'flex',
   flexDirection: 'column',
   gap: 12,
@@ -4955,7 +5398,7 @@ const workspaceScrollStyle: React.CSSProperties = {
   flex: 1,
   minHeight: 0,
   overflowY: 'auto',
-  padding: '22px 24px 24px',
+  padding: '18px 18px 20px',
 }
 
 const strategyWorkspaceScrollStyle: React.CSSProperties = {
@@ -4963,7 +5406,71 @@ const strategyWorkspaceScrollStyle: React.CSSProperties = {
   minHeight: 0,
   overflow: 'hidden',
   padding: 0,
-  background: '#0B1118',
+  background: tradingDeskTheme.colors.rootElevated,
+}
+
+function wechatThreadSidebarShellStyle(base: React.CSSProperties): React.CSSProperties {
+  return {
+    ...base,
+    borderRight: `1px solid ${wechatShellPalette.border}`,
+    background: wechatShellPalette.root,
+    color: wechatShellPalette.text,
+  }
+}
+
+const wechatWorkspaceScrollStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  padding: '0 14px 16px',
+  background: wechatShellPalette.root,
+}
+
+const wechatPageHeaderShellStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  gap: 16,
+  padding: '10px 0 8px',
+  marginBottom: 0,
+  background: wechatShellPalette.root,
+}
+
+const wechatPageEyebrowStyle: React.CSSProperties = {
+  color: tradingDeskTheme.colors.mutedStrong,
+  fontSize: 11,
+  lineHeight: 1.2,
+  fontWeight: 700,
+  letterSpacing: 0,
+  textTransform: 'uppercase',
+}
+
+const wechatPageTitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: wechatShellPalette.textStrong,
+  fontSize: 22,
+  lineHeight: 1,
+  fontWeight: 800,
+  letterSpacing: 0,
+}
+
+const wechatPageDescriptionStyle: React.CSSProperties = {
+  color: wechatShellPalette.muted,
+  fontSize: 13,
+  lineHeight: 1.45,
+  maxWidth: 760,
+}
+
+const wechatSecondaryButtonStyle: React.CSSProperties = {
+  border: `1px solid ${wechatShellPalette.borderStrong}`,
+  borderRadius: 5,
+  background: tradingDeskTheme.colors.control,
+  color: tradingDeskTheme.colors.controlText,
+  padding: '8px 11px',
+  cursor: 'pointer',
+  fontFamily: fontStacks.ui,
+  fontSize: 13,
+  fontWeight: 700,
 }
 
 const pageHeaderShellStyle: React.CSSProperties = {
@@ -4971,7 +5478,12 @@ const pageHeaderShellStyle: React.CSSProperties = {
   justifyContent: 'space-between',
   alignItems: 'flex-start',
   gap: 16,
-  marginBottom: 16,
+  padding: '10px 12px',
+  marginBottom: 8,
+  borderRadius: 8,
+  border: `1px solid ${palette.border}`,
+  background: palette.panel,
+  boxShadow: 'none',
 }
 
 const pageHeaderActionsStyle: React.CSSProperties = {
@@ -5058,8 +5570,8 @@ function modeCardStyle(active: boolean): React.CSSProperties {
     gap: 8,
     padding: '14px 16px',
     borderRadius: 16,
-    border: `1px solid ${active ? 'rgba(184, 100, 59, 0.38)' : palette.border}`,
-    background: active ? 'rgba(184, 100, 59, 0.08)' : palette.panel,
+    border: `1px solid ${active ? tradingDeskTheme.alpha.accentBorder : palette.border}`,
+    background: active ? tradingDeskTheme.alpha.accentSurface : palette.panel,
     color: palette.ink,
     textAlign: 'left',
     cursor: 'pointer',
@@ -5092,8 +5604,8 @@ const launchContextTileStyle: React.CSSProperties = {
   gap: 6,
   padding: 10,
   borderRadius: 12,
-  background: 'rgba(247, 242, 232, 0.04)',
-  border: '1px solid rgba(247, 242, 232, 0.08)',
+  background: tradingDeskTheme.alpha.panelWash,
+  border: `1px solid ${tradingDeskTheme.alpha.textHairline}`,
 }
 
 const contextValueStyle: React.CSSProperties = {
@@ -5130,6 +5642,7 @@ const capabilityRailStyle: React.CSSProperties = {
 }
 
 function capabilityChipStyle(kind: CapabilityItem['kind']): React.CSSProperties {
+  const pack = kind === 'pack'
   return {
     width: '100%',
     display: 'flex',
@@ -5138,8 +5651,8 @@ function capabilityChipStyle(kind: CapabilityItem['kind']): React.CSSProperties 
     gap: 12,
     padding: '12px 14px',
     borderRadius: 14,
-    border: `1px solid ${kind === 'pack' ? 'rgba(44, 122, 120, 0.22)' : palette.border}`,
-    background: kind === 'pack' ? 'rgba(44, 122, 120, 0.08)' : palette.panel,
+    border: `1px solid ${pack ? 'rgba(47, 140, 255, 0.28)' : palette.border}`,
+    background: pack ? tradingDeskTheme.alpha.auroraBlue : palette.panel,
     color: palette.ink,
     cursor: 'pointer',
     textAlign: 'left',

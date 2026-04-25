@@ -72,6 +72,26 @@ contextBridge.exposeInMainWorld('weclawSessions', {
   ) => ipcRenderer.invoke('weclaw:update-session-state', canonicalSessionId, patch),
 })
 
+contextBridge.exposeInMainWorld('longclawWechat', {
+  getBindingStatus: () => ipcRenderer.invoke('wechat:get-binding-status'),
+  createBindingSession: () => ipcRenderer.invoke('wechat:create-binding-session'),
+  createLocalBindingSession: () => ipcRenderer.invoke('wechat:create-local-binding-session'),
+  completeBindingSession: () => ipcRenderer.invoke('wechat:complete-binding-session'),
+  revokeBinding: () => ipcRenderer.invoke('wechat:revoke-binding'),
+  routeMessage: (text: string) => ipcRenderer.invoke('wechat:route-message', text),
+})
+
+contextBridge.exposeInMainWorld('longclawPluginDev', {
+  listIssues: () => ipcRenderer.invoke('plugin-dev:list-issues'),
+  listReceipts: () => ipcRenderer.invoke('plugin-dev:list-receipts'),
+  startImplementation: (issueId: string) =>
+    ipcRenderer.invoke('plugin-dev:start-implementation', issueId),
+  runCi: (issueId: string) => ipcRenderer.invoke('plugin-dev:run-ci', issueId),
+  merge: (issueId: string) => ipcRenderer.invoke('plugin-dev:merge', issueId),
+  registerArtifact: (issueId: string) =>
+    ipcRenderer.invoke('plugin-dev:register-artifact', issueId),
+})
+
 contextBridge.exposeInMainWorld('longclawCapabilitySubstrate', {
   getSummary: () => ipcRenderer.invoke('capability-substrate:get-summary'),
 })

@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, clipboard } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import http from 'http'
 import { execFileSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { createBackend, AgentBackend, AgentMode } from './agent-backend.js'
@@ -30,6 +31,19 @@ import {
   normalizeWeclawSessionUiState,
   type WeclawSessionUiState,
 } from './runtime/weclawSessionState.js'
+import {
+  completeWeChatBindingSession,
+  createWeChatBindingSession,
+  mergePluginDevIssue,
+  readPluginDevState,
+  readWeChatBindingStatus,
+  registerPluginDevArtifact,
+  revokeWeChatBinding,
+  routeWeChatMessage,
+  runPluginDevCi,
+  startPluginDevImplementation,
+  updateWeChatBindingScanStatus,
+} from './runtime/wechatPluginDev.js'
 import { createLongclawControlPlaneClientFromEnv } from '../../src/services/longclawControlPlane/client.js'
 import {
   LongclawCapabilitySubstrateSummarySchema,
@@ -292,6 +306,347 @@ function log(...args: any[]) {
   writePersistentLog(line)
 }
 
+let wechatBindingCallbackServer: http.Server | null = null
+let wechatBindingCallbackPort = Number.isFinite(WECHAT_BINDING_CALLBACK_PORT)
+  ? WECHAT_BINDING_CALLBACK_PORT
+  : 18744
+let activeWechatIlinkPoller: { sessionId: string; cancelled: boolean } | null = null
+const WECLAW_BRIDGE_LAUNCHD_LABEL =
+  process.env.LONGCLAW_WECLAW_BRIDGE_LAUNCHD_LABEL ?? 'com.zhangqilong.ai.weclaw.bridge'
+
+type IlinkQrResponse = {
+  qrcode?: string
+  qrcode_img_content?: string
+}
+
+type IlinkQrStatusResponse = {
+  status?: string
+  bot_token?: string
+  ilink_bot_id?: string
+  baseurl?: string
+  ilink_user_id?: string
+}
+
+function localNetworkAddress(): string {
+  const interfaces = os.networkInterfaces()
+  for (const entries of Object.values(interfaces)) {
+    for (const entry of entries ?? []) {
+      if (entry.family === 'IPv4' && !entry.internal) return entry.address
+    }
+  }
+  return '127.0.0.1'
+}
+
+function wechatBindingCallbackBaseUrl(): string {
+  return `http://${localNetworkAddress()}:${wechatBindingCallbackPort}`
+}
+
+function wechatIlinkBaseUrl(): string {
+  return (process.env.LONGCLAW_WECHAT_ILINK_BASE_URL ?? 'https://ilinkai.weixin.qq.com').replace(
+    /\/+$/g,
+    '',
+  )
+}
+
+function normalizeIlinkAccountId(raw: string): string {
+  return path.basename(raw.replace(/[@.:]/g, '-')) || `ilink-${Date.now()}`
+}
+
+function saveIlinkCredentials(creds: Required<Pick<IlinkQrStatusResponse, 'bot_token' | 'ilink_bot_id'>> & IlinkQrStatusResponse): string {
+  const accountsDir = path.join(os.homedir(), '.weclaw', 'accounts')
+  fs.mkdirSync(accountsDir, { recursive: true, mode: 0o700 })
+  const accountPath = path.join(accountsDir, `${normalizeIlinkAccountId(creds.ilink_bot_id)}.json`)
+  fs.writeFileSync(
+    accountPath,
+    `${JSON.stringify(
+      {
+        bot_token: creds.bot_token,
+        ilink_bot_id: creds.ilink_bot_id,
+        baseurl: creds.baseurl ?? wechatIlinkBaseUrl(),
+        ilink_user_id: creds.ilink_user_id,
+      },
+      null,
+      2,
+    )}\n`,
+    { encoding: 'utf-8', mode: 0o600 },
+  )
+  fs.chmodSync(accountPath, 0o600)
+  return accountPath
+}
+
+function kickstartWeclawBridgeAfterBinding(accountPath: string) {
+  const target = `gui/${os.userInfo().uid}/${WECLAW_BRIDGE_LAUNCHD_LABEL}`
+  try {
+    execFileSync('launchctl', ['kickstart', '-k', target], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 15_000,
+    })
+    log('wechat ilink binding kickstarted weclaw bridge', {
+      launchd_label: WECLAW_BRIDGE_LAUNCHD_LABEL,
+      account_path: accountPath,
+    })
+  } catch (error) {
+    const details =
+      error && typeof error === 'object' && 'stderr' in error
+        ? String((error as { stderr?: unknown }).stderr).trim()
+        : error instanceof Error
+          ? error.message
+          : String(error)
+    log('wechat ilink binding could not kickstart weclaw bridge', {
+      launchd_label: WECLAW_BRIDGE_LAUNCHD_LABEL,
+      account_path: accountPath,
+      error: details,
+    })
+  }
+}
+
+async function fetchJsonWithTimeout(url: string, timeoutMs: number): Promise<unknown> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    const body = await response.text()
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`)
+    return JSON.parse(body) as unknown
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function fetchIlinkBindingQr(): Promise<IlinkQrResponse> {
+  const payload = (await fetchJsonWithTimeout(
+    `${wechatIlinkBaseUrl()}/ilink/bot/get_bot_qrcode?bot_type=3`,
+    20_000,
+  )) as IlinkQrResponse
+  if (!payload.qrcode || !payload.qrcode_img_content) {
+    throw new Error('iLink QR response missing qrcode fields.')
+  }
+  return payload
+}
+
+function cancelWechatIlinkPolling() {
+  if (activeWechatIlinkPoller) activeWechatIlinkPoller.cancelled = true
+  activeWechatIlinkPoller = null
+}
+
+function startWechatIlinkPolling(sessionId: string, ilinkQrcode: string) {
+  cancelWechatIlinkPolling()
+  const poller = { sessionId, cancelled: false }
+  activeWechatIlinkPoller = poller
+  void pollWechatIlinkBinding(poller, ilinkQrcode).catch(error => {
+    log('wechat ilink polling failed', {
+      session_id: sessionId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    updateWeChatBindingScanStatus(WECHAT_BINDING_STATE_PATH, {
+      bindingSessionId: sessionId,
+      scanStatus: 'wait',
+      identityStatus: 'ilink_failed',
+      identityError: error instanceof Error ? error.message : String(error),
+    })
+  })
+}
+
+async function pollWechatIlinkBinding(
+  poller: { sessionId: string; cancelled: boolean },
+  ilinkQrcode: string,
+) {
+  const statusUrl = `${wechatIlinkBaseUrl()}/ilink/bot/get_qrcode_status?qrcode=${encodeURIComponent(ilinkQrcode)}`
+  let lastStatus = ''
+  while (!poller.cancelled) {
+    const payload = (await fetchJsonWithTimeout(statusUrl, 45_000)) as IlinkQrStatusResponse
+    const scanStatus =
+      payload.status === 'scaned' ||
+      payload.status === 'confirmed' ||
+      payload.status === 'expired'
+        ? payload.status
+        : 'wait'
+    if (scanStatus !== lastStatus) {
+      lastStatus = scanStatus
+      log('wechat ilink qr status', {
+        session_id: poller.sessionId,
+        scan_status: scanStatus,
+        has_ilink_bot_id: Boolean(payload.ilink_bot_id),
+        has_ilink_user_id: Boolean(payload.ilink_user_id),
+        has_bot_token: Boolean(payload.bot_token),
+      })
+    }
+
+    if (scanStatus === 'scaned') {
+      updateWeChatBindingScanStatus(WECHAT_BINDING_STATE_PATH, {
+        bindingSessionId: poller.sessionId,
+        scanStatus,
+        identityStatus: 'ilink_scanned',
+        identityNote: 'QR scanned in WeChat; waiting for phone confirmation.',
+      })
+    } else if (scanStatus === 'expired') {
+      updateWeChatBindingScanStatus(WECHAT_BINDING_STATE_PATH, {
+        bindingSessionId: poller.sessionId,
+        scanStatus,
+        identityStatus: 'ilink_failed',
+        identityNote: 'iLink QR expired before confirmation.',
+      })
+      return
+    } else if (scanStatus === 'confirmed') {
+      if (!payload.bot_token || !payload.ilink_bot_id || !payload.ilink_user_id) {
+        throw new Error('iLink confirmed without required identity fields.')
+      }
+      const accountPath = saveIlinkCredentials({
+        bot_token: payload.bot_token,
+        ilink_bot_id: payload.ilink_bot_id,
+        baseurl: payload.baseurl ?? wechatIlinkBaseUrl(),
+        ilink_user_id: payload.ilink_user_id,
+        status: payload.status,
+      })
+      const bound = completeWeChatBindingSession(WECHAT_BINDING_STATE_PATH, {
+        bindingSessionId: poller.sessionId,
+        provider: 'ilink_service_account',
+        wechatUserId: payload.ilink_user_id,
+        ilinkBotId: payload.ilink_bot_id,
+        ilinkUserId: payload.ilink_user_id,
+        ilinkBaseurl: payload.baseurl ?? wechatIlinkBaseUrl(),
+        botTokenPresent: true,
+        accountPath,
+        identityStatus: 'ilink_verified',
+        identityNote: 'iLink QR confirmed; token stored in runtime account file and hidden from renderer.',
+      })
+      log('wechat ilink binding completed', {
+        session_id: bound.binding_session_id,
+        has_ilink_bot_id: Boolean(bound.ilink_bot_id),
+        has_ilink_user_id: Boolean(bound.ilink_user_id),
+        account_saved: Boolean(bound.account_path),
+        bound_at: bound.bound_at,
+      })
+      kickstartWeclawBridgeAfterBinding(accountPath)
+      return
+    }
+  }
+}
+
+async function createIlinkWeChatBindingSession() {
+  const qr = await fetchIlinkBindingQr()
+  const status = createWeChatBindingSession(WECHAT_BINDING_STATE_PATH, {
+    provider: 'ilink_service_account',
+    qrUrl: qr.qrcode_img_content,
+    ilinkQrcode: qr.qrcode,
+    ilinkBaseurl: wechatIlinkBaseUrl(),
+    identityNote: 'iLink QR issued; scan with WeChat and confirm on phone.',
+    expiresInMs: 2 * 60 * 1000,
+  })
+  log('wechat ilink qr created', {
+    session_id: status.binding_session_id,
+    expires_at: status.expires_at,
+    ilink_baseurl: status.ilink_baseurl,
+  })
+  if (status.binding_session_id && qr.qrcode) startWechatIlinkPolling(status.binding_session_id, qr.qrcode)
+  return status
+}
+
+function createLocalWeChatBindingSession(identityOverride?: { status?: 'ilink_failed'; note?: string }) {
+  const status = createWeChatBindingSession(WECHAT_BINDING_STATE_PATH, {
+    provider: 'local_lan_callback',
+    qrUrlBase: wechatBindingCallbackBaseUrl(),
+    identityStatus: identityOverride?.status,
+    identityNote: identityOverride?.note,
+  })
+  log('wechat local binding qr created', {
+    session_id: status.binding_session_id,
+    qr_url: status.qr_url,
+    expires_at: status.expires_at,
+  })
+  return status
+}
+
+function sendWechatBindingHtml(
+  response: http.ServerResponse,
+  statusCode: number,
+  title: string,
+  body: string,
+) {
+  response.writeHead(statusCode, { 'content-type': 'text/html; charset=utf-8' })
+  response.end(`<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${title}</title>
+  <style>
+    body { margin: 0; padding: 28px; font: 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111827; background: #f8fafc; }
+    main { max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #d1d5db; border-radius: 12px; background: #fff; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    p { margin: 0; line-height: 1.6; color: #4b5563; }
+  </style>
+</head>
+<body><main><h1>${title}</h1><p>${body}</p></main></body>
+</html>`)
+}
+
+function startWechatBindingCallbackServer() {
+  if (wechatBindingCallbackServer) return
+  const server = http.createServer((request, response) => {
+    const requestUrl = new URL(request.url ?? '/', 'http://localhost')
+    if (requestUrl.pathname !== '/wechat/bind') {
+      sendWechatBindingHtml(response, 404, '未找到绑定入口', '请重新扫描 Agent OS 里的微信绑定二维码。')
+      return
+    }
+    const sessionId = requestUrl.searchParams.get('session') ?? ''
+    const remoteAddress = request.socket.remoteAddress ?? 'unknown'
+    log('wechat binding scan received', {
+      session_id: sessionId,
+      remote_address: remoteAddress,
+      user_agent: request.headers['user-agent'],
+    })
+    try {
+      const status = completeWeChatBindingSession(WECHAT_BINDING_STATE_PATH, {
+        bindingSessionId: sessionId,
+        provider: 'local_lan_callback',
+        wechatUserId: `wechat-scan-${sessionId.slice(-8)}`,
+        displayName: 'WeChat scanner',
+        scanRemoteAddress: remoteAddress,
+        scanUserAgent:
+          typeof request.headers['user-agent'] === 'string'
+            ? request.headers['user-agent']
+            : undefined,
+        identityStatus: 'local_runtime_bound',
+        identityNote:
+          'Local LAN QR callback reached runtime. This proves scan-to-runtime only; it is not OpenID/iLink identity proof.',
+      })
+      log('wechat binding scan completed', {
+        session_id: status.binding_session_id,
+        wechat_user_id: status.wechat_user_id,
+        bound_at: status.bound_at,
+      })
+      sendWechatBindingHtml(
+        response,
+        200,
+        '绑定成功',
+        '微信扫码已被本机 Agent OS 接收。现在可以回到 Electron 查看绑定状态。',
+      )
+    } catch (error) {
+      log('wechat binding scan failed', {
+        session_id: sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      sendWechatBindingHtml(
+        response,
+        400,
+        '绑定失败',
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  })
+  server.on('error', error => {
+    log('wechat binding callback server failed', error)
+  })
+  server.listen(wechatBindingCallbackPort, '0.0.0.0', () => {
+    const address = server.address()
+    if (address && typeof address === 'object') wechatBindingCallbackPort = address.port
+    log('wechat binding callback server listening', wechatBindingCallbackBaseUrl())
+  })
+  wechatBindingCallbackServer = server
+}
+
 function compactObservationValue(value: unknown): unknown {
   if (value === null || value === undefined) return value
   if (typeof value === 'string') {
@@ -362,6 +717,9 @@ const WECLAW_SESSION_UI_STATE_PATH = path.join(
   LONGCLAW_RUNTIME_DIR,
   'weclaw-session-state.json',
 )
+const WECHAT_BINDING_STATE_PATH = path.join(LONGCLAW_RUNTIME_DIR, 'wechat-binding.json')
+const PLUGIN_DEV_STATE_PATH = path.join(LONGCLAW_RUNTIME_DIR, 'plugin-dev.json')
+const WECHAT_BINDING_CALLBACK_PORT = Number(process.env.LONGCLAW_WECHAT_BIND_PORT ?? 18744)
 const WECLAW_CONFIG_PATH = path.join(os.homedir(), '.weclaw', 'config.json')
 const DEFAULT_WECLAW_WORKSPACE = path.join(os.homedir(), '.weclaw', 'workspace')
 
@@ -1462,6 +1820,18 @@ function updateWeclawSessionUiState(
   return weclawSessionUiState
 }
 
+function getWeChatBindingStatus() {
+  return readWeChatBindingStatus(WECHAT_BINDING_STATE_PATH)
+}
+
+function getPluginDevIssues() {
+  return readPluginDevState(PLUGIN_DEV_STATE_PATH).issues
+}
+
+function getPluginDevReceipts() {
+  return readPluginDevState(PLUGIN_DEV_STATE_PATH).receipts
+}
+
 function getCapabilityManagerSettings(): CapabilityManagerSettings {
   return capabilityManagerSettings
 }
@@ -2333,6 +2703,7 @@ app.whenReady().then(() => {
     observation_dir: observationState.observation_dir,
     logs: observationState.logs,
   })
+  startWechatBindingCallbackServer()
   // Agent
   ipcMain.handle('agent:query', handleQuery)
   ipcMain.handle('agent:clear', async () => {
@@ -2392,10 +2763,78 @@ app.whenReady().then(() => {
   ipcMain.handle('weclaw:list-sessions', () => listWeclawSessions())
   ipcMain.handle('weclaw:get-session', (_event, sessionId: string) => getWeclawSession(sessionId))
   ipcMain.handle('weclaw:get-source-status', () => getWeclawSessionSourceStatus())
+  ipcMain.handle('wechat:get-binding-status', () => getWeChatBindingStatus())
+  ipcMain.handle('wechat:create-binding-session', async () => {
+    try {
+      return await createIlinkWeChatBindingSession()
+    } catch (error) {
+      log('wechat ilink qr creation failed; falling back to local callback', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return createLocalWeChatBindingSession({
+        status: 'ilink_failed',
+        note:
+          error instanceof Error
+            ? `iLink QR unavailable: ${error.message}`
+            : `iLink QR unavailable: ${String(error)}`,
+      })
+    }
+  })
+  ipcMain.handle('wechat:create-local-binding-session', () => {
+    cancelWechatIlinkPolling()
+    return createLocalWeChatBindingSession()
+  })
+  ipcMain.handle('wechat:complete-binding-session', () => {
+    const pending = readWeChatBindingStatus(WECHAT_BINDING_STATE_PATH)
+    const status = completeWeChatBindingSession(WECHAT_BINDING_STATE_PATH, {
+      provider: pending.provider,
+      identityStatus:
+        pending.provider === 'local_lan_callback' ? 'local_runtime_bound' : 'ilink_failed',
+      identityNote:
+        pending.provider === 'local_lan_callback'
+          ? 'Manual local completion. OpenID/iLink identity was not provided by this callback.'
+          : 'Manual completion cannot verify iLink identity; scan and confirm the iLink QR instead.',
+    })
+    log('wechat binding manually completed', {
+      session_id: status.binding_session_id,
+      wechat_user_id: status.wechat_user_id,
+      identity_status: status.identity_status,
+      bound_at: status.bound_at,
+    })
+    return status
+  })
+  ipcMain.handle('wechat:revoke-binding', () => {
+    cancelWechatIlinkPolling()
+    const status = revokeWeChatBinding(WECHAT_BINDING_STATE_PATH)
+    log('wechat binding revoked')
+    return status
+  })
+  ipcMain.handle('wechat:route-message', (_event, text: string) =>
+    routeWeChatMessage({
+      bindingPath: WECHAT_BINDING_STATE_PATH,
+      pluginDevPath: PLUGIN_DEV_STATE_PATH,
+      text,
+      targetRepo: currentCwd || REPO_ROOT,
+    }),
+  )
   ipcMain.handle(
     'weclaw:update-session-state',
     (_event, canonicalSessionId: string, patch: Partial<{ hidden: boolean; archived: boolean }>) =>
       updateWeclawSessionUiState(canonicalSessionId, patch),
+  )
+  ipcMain.handle('plugin-dev:list-issues', () => getPluginDevIssues())
+  ipcMain.handle('plugin-dev:list-receipts', () => getPluginDevReceipts())
+  ipcMain.handle('plugin-dev:start-implementation', (_event, issueId: string) =>
+    startPluginDevImplementation(PLUGIN_DEV_STATE_PATH, issueId),
+  )
+  ipcMain.handle('plugin-dev:run-ci', (_event, issueId: string) =>
+    runPluginDevCi(PLUGIN_DEV_STATE_PATH, issueId),
+  )
+  ipcMain.handle('plugin-dev:merge', (_event, issueId: string) =>
+    mergePluginDevIssue(PLUGIN_DEV_STATE_PATH, issueId),
+  )
+  ipcMain.handle('plugin-dev:register-artifact', (_event, issueId: string) =>
+    registerPluginDevArtifact(PLUGIN_DEV_STATE_PATH, issueId),
   )
   ipcMain.handle('capability-substrate:get-summary', buildCapabilitySubstrateSummary)
   ipcMain.handle('capability-manager:get-settings', () => getCapabilityManagerSettings())
@@ -2469,6 +2908,9 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   log('window-all-closed')
   backend?.close()
+  cancelWechatIlinkPolling()
+  wechatBindingCallbackServer?.close()
+  wechatBindingCallbackServer = null
   if (process.platform !== 'darwin') app.quit()
 })
 

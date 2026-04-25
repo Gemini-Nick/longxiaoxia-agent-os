@@ -14,7 +14,7 @@ import type {
   LongclawRun,
   SignalsDashboard,
 } from '../../../../src/services/longclawControlPlane/models.js'
-import { statusBadgeStyle } from '../designSystem.js'
+import { fontStacks, statusBadgeStyle, tradingDeskTheme } from '../designSystem.js'
 import type { LongclawLocale } from '../i18n.js'
 import { observedFetchJson, recordObservationEvent } from '../observation.js'
 
@@ -26,7 +26,7 @@ type BacktestDashboard = Pick<
 type BacktestWorkbenchProps = {
   locale: LongclawLocale
   dashboard: BacktestDashboard
-  signalsWeb2BaseUrl?: string
+  signalsWebBaseUrl?: string
   onOpenRun: (run: LongclawRun) => Promise<void>
   onOpenRecord: (title: string, record: Record<string, unknown>) => void
 }
@@ -113,35 +113,36 @@ type MarkerData = {
 const BACKTEST_MARKER_OVERLAY = 'longclawBacktestMarker'
 const BACKTEST_MARKER_GROUP = 'longclaw-backtest-markers'
 let markerRegistered = false
+const terminalTheme = tradingDeskTheme.colors
 
 const rootStyle: React.CSSProperties = {
   height: '100%',
   minHeight: 0,
   display: 'grid',
   gridTemplateRows: '40px minmax(0, 1fr)',
-  background: '#0B1118',
-  color: '#D7DEE8',
-  fontFamily: '"Instrument Sans", "PingFang SC", "Noto Sans SC", sans-serif',
+  background: terminalTheme.root,
+  color: terminalTheme.text,
+  fontFamily: fontStacks.ui,
 }
 
 const toolbarStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'auto minmax(180px, 260px) auto auto auto 1fr auto',
+  gridTemplateColumns: 'auto minmax(160px, 240px) auto auto auto minmax(0, 1fr) auto',
   alignItems: 'center',
   gap: 7,
   padding: '5px 9px',
-  borderBottom: '1px solid #1C2633',
-  background: '#0F1620',
+  borderBottom: `1px solid ${terminalTheme.grid}`,
+  background: terminalTheme.panel,
   minWidth: 0,
 }
 
 const mainGridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(240px, 280px) minmax(540px, 1fr) minmax(300px, 360px)',
+  gridTemplateColumns: 'minmax(214px, 250px) minmax(0, 1fr) minmax(250px, 320px)',
   minHeight: 0,
   overflow: 'hidden',
   gap: 1,
-  background: '#1C2633',
+  background: terminalTheme.grid,
 }
 
 const sideStyle: React.CSSProperties = {
@@ -150,7 +151,7 @@ const sideStyle: React.CSSProperties = {
   gap: 1,
   minHeight: 0,
   overflow: 'hidden',
-  background: '#1C2633',
+  background: terminalTheme.grid,
 }
 
 const panelStyle: React.CSSProperties = {
@@ -160,7 +161,7 @@ const panelStyle: React.CSSProperties = {
   padding: 9,
   minHeight: 0,
   overflow: 'hidden',
-  background: '#0F1620',
+  background: terminalTheme.panel,
 }
 
 const chartPanelStyle: React.CSSProperties = {
@@ -169,7 +170,7 @@ const chartPanelStyle: React.CSSProperties = {
   gap: 6,
   padding: 8,
   minHeight: 0,
-  background: '#0B1118',
+  background: terminalTheme.root,
 }
 
 const chartHeaderStyle: React.CSSProperties = {
@@ -180,7 +181,7 @@ const chartHeaderStyle: React.CSSProperties = {
 }
 
 const chartTitleStyle: React.CSSProperties = {
-  color: '#F2F6FB',
+  color: terminalTheme.textStrong,
   fontSize: 20,
   lineHeight: 1.1,
   fontWeight: 800,
@@ -194,32 +195,32 @@ const chartShellStyle: React.CSSProperties = {
   position: 'relative',
   flex: 1,
   minHeight: 0,
-  border: '1px solid #202A38',
-  background: '#131722',
+  border: `1px solid ${terminalTheme.chartBorder}`,
+  background: terminalTheme.chartPanel,
   overflow: 'hidden',
 }
 
 const inputStyle: React.CSSProperties = {
   height: 30,
   minWidth: 0,
-  border: '1px solid #263244',
+  border: `1px solid ${terminalTheme.borderStrong}`,
   borderRadius: 5,
-  background: '#0B1118',
-  color: '#F2F6FB',
+  background: terminalTheme.root,
+  color: terminalTheme.textStrong,
   padding: '0 9px',
-  fontFamily: '"IBM Plex Mono", Menlo, monospace',
+  fontFamily: fontStacks.mono,
   fontSize: 13,
   outline: 'none',
 }
 
 const selectStyle: React.CSSProperties = {
   ...inputStyle,
-  color: '#D7DEE8',
-  fontFamily: '"Instrument Sans", "PingFang SC", "Noto Sans SC", sans-serif',
+  color: terminalTheme.text,
+  fontFamily: fontStacks.ui,
 }
 
 const labelStyle: React.CSSProperties = {
-  color: '#8EA0B8',
+  color: terminalTheme.mutedStrong,
   fontSize: 11,
   fontWeight: 700,
   textTransform: 'uppercase',
@@ -227,14 +228,14 @@ const labelStyle: React.CSSProperties = {
 }
 
 const mutedStyle: React.CSSProperties = {
-  color: '#7F8EA3',
+  color: terminalTheme.muted,
   fontSize: 12,
   lineHeight: 1.35,
 }
 
 const monoStyle: React.CSSProperties = {
-  color: '#9CB1CE',
-  fontFamily: '"IBM Plex Mono", Menlo, monospace',
+  color: terminalTheme.mono,
+  fontFamily: fontStacks.mono,
   fontSize: 12,
 }
 
@@ -242,9 +243,9 @@ const rowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  border: '1px solid #222D3B',
+  border: `1px solid ${terminalTheme.border}`,
   borderRadius: 5,
-  background: '#121B27',
+  background: terminalTheme.panelSoft,
   padding: '7px 8px',
   minWidth: 0,
 }
@@ -264,9 +265,9 @@ const metricGridStyle: React.CSSProperties = {
 }
 
 const metricCardStyle: React.CSSProperties = {
-  border: '1px solid #222D3B',
+  border: `1px solid ${terminalTheme.border}`,
   borderRadius: 5,
-  background: '#101926',
+  background: terminalTheme.panelInset,
   padding: '7px 8px',
   minWidth: 0,
 }
@@ -274,24 +275,24 @@ const metricCardStyle: React.CSSProperties = {
 const tableWrapStyle: React.CSSProperties = {
   minHeight: 0,
   overflow: 'auto',
-  border: '1px solid #222D3B',
+  border: `1px solid ${terminalTheme.border}`,
   borderRadius: 5,
 }
 
 const emptyStyle: React.CSSProperties = {
-  border: '1px dashed #2A3748',
+  border: `1px dashed ${terminalTheme.borderMuted}`,
   borderRadius: 5,
-  background: '#0E1722',
-  color: '#7F8EA3',
+  background: terminalTheme.empty,
+  color: terminalTheme.muted,
   padding: '12px 10px',
   textAlign: 'center',
   fontSize: 13,
 }
 
 const warningStyle: React.CSSProperties = {
-  border: '1px solid rgba(208, 138, 84, 0.38)',
-  background: 'rgba(208, 138, 84, 0.16)',
-  color: '#FFD0A8',
+  border: `1px solid ${tradingDeskTheme.alpha.accentBorder}`,
+  background: tradingDeskTheme.alpha.accentSurface,
+  color: terminalTheme.accentText,
   padding: '8px 10px',
   fontSize: 13,
 }
@@ -354,14 +355,14 @@ function dataHealthText(result: BacktestResult | null, locale: LongclawLocale): 
 function buttonStyle(active = false, disabled = false): React.CSSProperties {
   return {
     height: 30,
-    border: `1px solid ${active ? '#D08A54' : '#263244'}`,
+    border: `1px solid ${active ? terminalTheme.accent : terminalTheme.borderStrong}`,
     borderRadius: 5,
-    background: active ? 'rgba(208, 138, 84, 0.18)' : '#111A25',
-    color: active ? '#FFD0A8' : '#B7C2D0',
+    background: active ? terminalTheme.accentSoft : terminalTheme.control,
+    color: active ? terminalTheme.accentText : terminalTheme.controlText,
     padding: '0 10px',
     cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.45 : 1,
-    fontFamily: '"Instrument Sans", "PingFang SC", "Noto Sans SC", sans-serif',
+    fontFamily: fontStacks.ui,
     fontSize: 13,
     fontWeight: 700,
     whiteSpace: 'nowrap',
@@ -447,41 +448,41 @@ async function fetchJson<T>(baseUrl: string, path: string, timeoutMs = 120_000):
 function chartStyles(): DeepPartial<Styles> {
   return {
     grid: {
-      horizontal: { color: 'rgba(120, 123, 134, 0.18)' },
-      vertical: { color: 'rgba(120, 123, 134, 0.12)' },
+      horizontal: { color: tradingDeskTheme.chart.gridHorizontal },
+      vertical: { color: tradingDeskTheme.chart.gridVertical },
     },
     candle: {
       bar: {
-        upColor: '#F23645',
-        downColor: '#26A69A',
-        upBorderColor: '#F23645',
-        downBorderColor: '#26A69A',
-        upWickColor: '#F23645',
-        downWickColor: '#26A69A',
-        noChangeColor: '#787B86',
+        upColor: tradingDeskTheme.market.up,
+        downColor: tradingDeskTheme.market.down,
+        upBorderColor: tradingDeskTheme.market.up,
+        downBorderColor: tradingDeskTheme.market.down,
+        upWickColor: tradingDeskTheme.market.up,
+        downWickColor: tradingDeskTheme.market.down,
+        noChangeColor: tradingDeskTheme.market.flat,
       },
       priceMark: {
         last: {
-          line: { show: true, color: '#2962FF', size: 1 },
-          text: { show: true, color: '#FFFFFF', backgroundColor: '#2962FF', size: 11 },
+          line: { show: true, color: tradingDeskTheme.chart.line, size: 1 },
+          text: { show: true, color: terminalTheme.white, backgroundColor: tradingDeskTheme.chart.line, size: 11 },
         },
       },
     },
     indicator: {
       lines: [
-        { color: '#F7931A', size: 1, style: 'solid' },
-        { color: '#2962FF', size: 1, style: 'solid' },
-        { color: '#E040FB', size: 1, style: 'solid' },
-        { color: '#26A69A', size: 1, style: 'solid' },
+        { color: tradingDeskTheme.chart.orange, size: 1, style: 'solid' },
+        { color: tradingDeskTheme.chart.line, size: 1, style: 'solid' },
+        { color: tradingDeskTheme.chart.violet, size: 1, style: 'solid' },
+        { color: tradingDeskTheme.market.down, size: 1, style: 'solid' },
       ],
     },
-    xAxis: { tickText: { color: '#787B86', size: 11 } },
-    yAxis: { tickText: { color: '#787B86', size: 11 } },
+    xAxis: { tickText: { color: tradingDeskTheme.market.flat, size: 11 } },
+    yAxis: { tickText: { color: tradingDeskTheme.market.flat, size: 11 } },
     crosshair: {
-      horizontal: { line: { color: '#787B86', size: 1 } },
-      vertical: { line: { color: '#787B86', size: 1 } },
+      horizontal: { line: { color: tradingDeskTheme.market.flat, size: 1 } },
+      vertical: { line: { color: tradingDeskTheme.market.flat, size: 1 } },
     },
-    separator: { color: 'rgba(120, 123, 134, 0.25)', size: 1 },
+    separator: { color: tradingDeskTheme.chart.separator, size: 1 },
   }
 }
 
@@ -500,7 +501,7 @@ function ensureMarkerOverlay() {
       const data = recordValue(overlay.extendData) as MarkerData
       const label = data.label || 'SIG'
       const side = data.side === 'sell' ? 'sell' : 'buy'
-      const color = data.color || (side === 'buy' ? '#F7931A' : '#9C27B0')
+      const color = data.color || (side === 'buy' ? tradingDeskTheme.chart.orange : tradingDeskTheme.chart.purple)
       const width = Math.max(32, Math.min(70, label.length * 8 + 14))
       const height = 18
       const rectX = point.x - width / 2
@@ -509,7 +510,7 @@ function ensureMarkerOverlay() {
         {
           type: 'rect',
           attrs: { x: rectX, y: rectY, width, height },
-          styles: { color, borderColor: 'rgba(255, 255, 255, 0.3)', borderRadius: 4 },
+          styles: { color, borderColor: tradingDeskTheme.alpha.textBorderStrong, borderRadius: 4 },
           ignoreEvent: true,
         },
         {
@@ -522,7 +523,7 @@ function ensureMarkerOverlay() {
             baseline: 'middle',
           },
           styles: {
-            color: '#FFFFFF',
+            color: terminalTheme.white,
             size: 10,
             weight: 700,
             family: 'IBM Plex Mono, Menlo, monospace',
@@ -543,13 +544,13 @@ function signalLabel(signal: BacktestSignal): string {
 
 function signalColor(signal: BacktestSignal): string {
   const group = String(signal.group ?? '').toLowerCase()
-  if (group === 'macd') return '#26A69A'
-  if (group === 'czsc') return '#F7931A'
-  if (group.includes('trend')) return '#26A69A'
-  if (group.includes('vol')) return '#E040FB'
-  if (group.includes('candle')) return '#FF9800'
-  if (group.includes('gap')) return '#F7931A'
-  return '#9C27B0'
+  if (group === 'macd') return tradingDeskTheme.market.down
+  if (group === 'czsc') return tradingDeskTheme.chart.orange
+  if (group.includes('trend')) return tradingDeskTheme.market.down
+  if (group.includes('vol')) return tradingDeskTheme.chart.violet
+  if (group.includes('candle')) return tradingDeskTheme.chart.gold
+  if (group.includes('gap')) return tradingDeskTheme.chart.orange
+  return tradingDeskTheme.chart.purple
 }
 
 function signalSide(signal: BacktestSignal): 'buy' | 'sell' {
@@ -603,11 +604,11 @@ function buildParams(
 export function BacktestWorkbench({
   locale,
   dashboard,
-  signalsWeb2BaseUrl,
+  signalsWebBaseUrl,
   onOpenRun,
   onOpenRecord,
 }: BacktestWorkbenchProps) {
-  const baseUrl = trimTrailingSlash(signalsWeb2BaseUrl)
+  const baseUrl = trimTrailingSlash(signalsWebBaseUrl)
   const chartContainerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<Chart | null>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
@@ -809,8 +810,8 @@ export function BacktestWorkbench({
       <div style={rootStyle}>
         <div style={{ ...warningStyle, margin: 9 }}>
           {locale === 'zh-CN'
-            ? '没有配置 LONGCLAW_SIGNALS_WEB2_BASE_URL，回测页只能展示降级队列。'
-            : 'LONGCLAW_SIGNALS_WEB2_BASE_URL is not configured. Showing the degraded queue only.'}
+            ? '信号实时入口未配置，当前显示降级队列。'
+            : 'Signals live endpoint is not configured. Showing the degraded queue.'}
         </div>
         <FallbackBacktest
           locale={locale}
@@ -831,12 +832,12 @@ export function BacktestWorkbench({
           void runAnalyze()
         }}
       >
-        <div style={labelStyle}>{locale === 'zh-CN' ? 'WEB2 回测' : 'WEB2 Backtest'}</div>
+        <div style={labelStyle}>{locale === 'zh-CN' ? 'Signals 回测' : 'Signals Backtest'}</div>
         <input
           aria-label={locale === 'zh-CN' ? '股票代码' : 'Symbol'}
           style={inputStyle}
           value={code}
-          placeholder="002759 / 600519 / 09988"
+          placeholder="002759 / 600519 / 09988…"
           onChange={event => setCode(event.target.value)}
         />
         <select
@@ -968,11 +969,11 @@ export function BacktestWorkbench({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#8EA0B8',
-                background: result ? 'rgba(19, 23, 34, 0.86)' : 'transparent',
+                color: terminalTheme.mutedStrong,
+                background: result ? 'rgba(8, 11, 18, 0.86)' : 'transparent',
               }}>
                 {loading
-                  ? (locale === 'zh-CN' ? '正在拉取 Web2 回测数据。' : 'Loading Web2 backtest data.')
+                  ? (locale === 'zh-CN' ? '正在拉取 Signals 回测数据。' : 'Loading Signals backtest data.')
                   : (locale === 'zh-CN' ? '运行分析后显示 K线、信号、MACD 与成交。' : 'Run analysis to show candles, signals, MACD, and trades.')}
               </div>
             ) : null}
@@ -1045,7 +1046,7 @@ function Panel({
   return (
     <div style={panelStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-        <div style={{ color: '#F2F6FB', fontSize: 13, fontWeight: 800 }}>{title}</div>
+        <div style={{ color: terminalTheme.textStrong, fontSize: 13, fontWeight: 800 }}>{title}</div>
         {meta ? <div style={mutedStyle}>{meta}</div> : null}
       </div>
       {children}
@@ -1069,7 +1070,7 @@ function MetricStrip({ result }: { result: BacktestResult | null }) {
       {items.map(item => (
         <div key={item.label} style={metricCardStyle}>
           <div style={labelStyle}>{item.label}</div>
-          <div style={{ color: '#F2F6FB', fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ color: terminalTheme.textStrong, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {item.value}
           </div>
         </div>
@@ -1152,7 +1153,7 @@ function MetricGroup({ title, items }: { title: string; items: Array<[string, un
         {items.map(([label, value]) => (
           <div key={label} style={metricCardStyle}>
             <div style={mutedStyle}>{label}</div>
-            <div style={{ color: '#F2F6FB', fontWeight: 800 }}>{String(value ?? 'N/A')}</div>
+            <div style={{ color: terminalTheme.textStrong, fontWeight: 800 }}>{String(value ?? 'N/A')}</div>
           </div>
         ))}
       </div>
@@ -1166,7 +1167,7 @@ function SignalTable({ signals }: { signals: BacktestSignal[] }) {
     <div style={tableWrapStyle}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
-          <tr style={{ color: '#8EA0B8', textAlign: 'left' }}>
+          <tr style={{ color: terminalTheme.mutedStrong, textAlign: 'left' }}>
             <th style={{ padding: 7 }}>日期</th>
             <th style={{ padding: 7 }}>信号</th>
             <th style={{ padding: 7 }}>价格</th>
@@ -1177,14 +1178,14 @@ function SignalTable({ signals }: { signals: BacktestSignal[] }) {
           {signals.slice().reverse().map((signal, index) => {
             const returnT10 = numberValue(signal.eval?.return_t10)
             return (
-              <tr key={`${signal.dt ?? index}-${signal.type ?? 'signal'}`} style={{ borderTop: '1px solid #222D3B' }}>
-                <td style={{ padding: 7, color: '#9CB1CE' }}>{signal.date_str ?? ''}</td>
+              <tr key={`${signal.dt ?? index}-${signal.type ?? 'signal'}`} style={{ borderTop: `1px solid ${terminalTheme.border}` }}>
+                <td style={{ padding: 7, color: terminalTheme.mono }}>{signal.date_str ?? ''}</td>
                 <td style={{ padding: 7 }}>
-                  <div style={{ color: '#F2F6FB', fontWeight: 700 }}>{signal.type ?? signal.group ?? 'Signal'}</div>
+                  <div style={{ color: terminalTheme.textStrong, fontWeight: 700 }}>{signal.type ?? signal.group ?? 'Signal'}</div>
                   <div style={mutedStyle}>{[signal.group, signal.ma_status, signal.volume_status].filter(Boolean).join(' · ')}</div>
                 </td>
-                <td style={{ padding: 7, color: '#9CB1CE' }}>{formatNumber(signal.price)}</td>
-                <td style={{ padding: 7, color: (returnT10 ?? 0) >= 0 ? '#F23645' : '#26A69A' }}>
+                <td style={{ padding: 7, color: terminalTheme.mono }}>{formatNumber(signal.price)}</td>
+                <td style={{ padding: 7, color: (returnT10 ?? 0) >= 0 ? tradingDeskTheme.market.up : tradingDeskTheme.market.down }}>
                   {formatPercent(returnT10)}
                 </td>
               </tr>
@@ -1203,7 +1204,7 @@ function TradeTable({ trades }: { trades: BacktestTrade[] }) {
     <div style={tableWrapStyle}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
-          <tr style={{ color: '#8EA0B8', textAlign: 'left' }}>
+          <tr style={{ color: terminalTheme.mutedStrong, textAlign: 'left' }}>
             <th style={{ padding: 7 }}>信号</th>
             <th style={{ padding: 7 }}>入/出</th>
             <th style={{ padding: 7 }}>净利</th>
@@ -1211,16 +1212,16 @@ function TradeTable({ trades }: { trades: BacktestTrade[] }) {
         </thead>
         <tbody>
           {filled.slice().reverse().map((trade, index) => (
-            <tr key={`${trade.signal_date ?? index}-${trade.signal_type ?? 'trade'}`} style={{ borderTop: '1px solid #222D3B' }}>
+            <tr key={`${trade.signal_date ?? index}-${trade.signal_type ?? 'trade'}`} style={{ borderTop: `1px solid ${terminalTheme.border}` }}>
               <td style={{ padding: 7 }}>
-                <div style={{ color: '#F2F6FB', fontWeight: 700 }}>{trade.signal_type ?? 'Signal'}</div>
+                <div style={{ color: terminalTheme.textStrong, fontWeight: 700 }}>{trade.signal_type ?? 'Signal'}</div>
                 <div style={mutedStyle}>{trade.signal_date}</div>
               </td>
-              <td style={{ padding: 7, color: '#9CB1CE' }}>
+              <td style={{ padding: 7, color: terminalTheme.mono }}>
                 {formatNumber(trade.entry_price)} / {formatNumber(trade.exit_price)}
                 <div style={mutedStyle}>{trade.exit_reason ?? ''}</div>
               </td>
-              <td style={{ padding: 7, color: (trade.net_return_pct ?? 0) >= 0 ? '#F23645' : '#26A69A', fontWeight: 800 }}>
+              <td style={{ padding: 7, color: (trade.net_return_pct ?? 0) >= 0 ? tradingDeskTheme.market.up : tradingDeskTheme.market.down, fontWeight: 800 }}>
                 {formatPercent(trade.net_return_pct)}
               </td>
             </tr>
@@ -1274,12 +1275,12 @@ function ScanControls({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <tbody>
               {scan.scan_results.slice(0, 18).map((row, index) => (
-                <tr key={index} style={{ borderTop: index === 0 ? 'none' : '1px solid #222D3B' }}>
-                  <td style={{ padding: 7, color: '#F2F6FB' }}>
+                <tr key={index} style={{ borderTop: index === 0 ? 'none' : `1px solid ${terminalTheme.border}` }}>
+                  <td style={{ padding: 7, color: terminalTheme.textStrong }}>
                     {Object.values(recordValue(row.params)).join(' / ')}
                   </td>
-                  <td style={{ padding: 7, color: '#9CB1CE' }}>Sharpe {formatNumber(row.sharpe, 2)}</td>
-                  <td style={{ padding: 7, color: '#9CB1CE' }}>WR {formatPercent(row.win_rate)}</td>
+                  <td style={{ padding: 7, color: terminalTheme.mono }}>Sharpe {formatNumber(row.sharpe, 2)}</td>
+                  <td style={{ padding: 7, color: terminalTheme.mono }}>WR {formatPercent(row.win_rate)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1316,7 +1317,7 @@ function FallbackRows({
   return (
     <div style={compactListStyle}>
       {rows.length === 0 ? (
-        <div style={emptyStyle}>暂无 control-plane 降级队列。</div>
+        <div style={emptyStyle}>暂无降级队列。</div>
       ) : (
         rows.slice(0, 8).map((row, index) => (
           <button
@@ -1326,7 +1327,7 @@ function FallbackRows({
             onClick={() => onOpenRecord(`Backtest ${row.title}`, row.record)}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: '#F2F6FB', fontWeight: 700 }}>{row.title}</div>
+              <div style={{ color: terminalTheme.textStrong, fontWeight: 700 }}>{row.title}</div>
               <div style={mutedStyle}>{row.meta}</div>
             </div>
           </button>
@@ -1342,7 +1343,7 @@ function FallbackRows({
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#F2F6FB', fontWeight: 700 }}>{run.summary || run.run_id}</div>
+            <div style={{ color: terminalTheme.textStrong, fontWeight: 700 }}>{run.summary || run.run_id}</div>
             <div style={mutedStyle}>{run.status}</div>
           </div>
         </button>
