@@ -31,6 +31,8 @@ Thumbs.db
 npm-debug.log*
 .gstack/
 reports/product-observations/
+reports/desktop-observations/
+reports/uiux-cdp-audit/
 
 # Runtime build artifacts
 apps/runtime/guardian/weclaw-guardian
