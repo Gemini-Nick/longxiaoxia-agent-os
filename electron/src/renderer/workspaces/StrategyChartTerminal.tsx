@@ -7,6 +7,7 @@ import {
   registerOverlay,
   type Chart,
   type DeepPartial,
+  type IndicatorStyle,
   type KLineData,
   type OverlayCreateFiguresCallbackParams,
   type Styles,
@@ -857,7 +858,7 @@ function maPeriodsForFreq(freq?: string): number[] {
   return [5, 10, 20, 60]
 }
 
-function maIndicatorStyles(periods: number[]): Record<string, unknown> {
+function maIndicatorStyles(periods: number[]): DeepPartial<IndicatorStyle> {
   return {
     lines: periods.map((period, index) => ({
       color: MA_COLORS[index % MA_COLORS.length],
@@ -867,7 +868,7 @@ function maIndicatorStyles(periods: number[]): Record<string, unknown> {
   }
 }
 
-function macdIndicatorStyles(): Record<string, unknown> {
+function macdIndicatorStyles(): DeepPartial<IndicatorStyle> {
   return {
     lines: MACD_LINE_COLORS.map(color => ({ color, size: 1.2, style: 'solid' })),
     bars: [
@@ -880,7 +881,7 @@ function macdIndicatorStyles(): Record<string, unknown> {
   }
 }
 
-function macdZeroIndicatorStyles(): Record<string, unknown> {
+function macdZeroIndicatorStyles(): DeepPartial<IndicatorStyle> {
   return {
     lines: [
       {
@@ -2150,6 +2151,24 @@ export function StrategyChartTerminal({
               <div style={chartTitleStyle}>{summaryTitle}</div>
               <div style={mutedTextStyle}>
                 {[summarySubtitle, currentFreq, latestSignal || undefined].filter(Boolean).join(' · ')}
+              </div>
+              <div style={indicatorLegendStyle}>
+                {activeMaPeriods.map((period, index) => (
+                  <span key={`ma-${period}`} style={indicatorLegendItemStyle}>
+                    <span style={{ ...indicatorLegendSwatchStyle, background: MA_COLORS[index % MA_COLORS.length] }} />
+                    {`MA${period}`}
+                  </span>
+                ))}
+                {MACD_LINE_COLORS.map((color, index) => (
+                  <span key={`macd-${index}`} style={indicatorLegendItemStyle}>
+                    <span style={{ ...indicatorLegendSwatchStyle, background: color }} />
+                    {index === 0 ? 'DIF' : 'DEA'}
+                  </span>
+                ))}
+                <span style={indicatorLegendItemStyle}>
+                  <span style={{ ...indicatorLegendSwatchStyle, background: tradingDeskTheme.alpha.textBorderStrong }} />
+                  MACD 0
+                </span>
               </div>
             </div>
             <div style={chartHeaderRightStyle}>
