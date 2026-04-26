@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   dispose,
   init,
+  IndicatorSeries,
   registerIndicator,
   registerOverlay,
   type Chart,
@@ -461,6 +462,31 @@ const watchlistSubStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
+const indicatorLegendStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '4px 9px',
+  alignItems: 'center',
+  color: terminalTheme.muted,
+  fontFamily: fontStacks.mono,
+  fontSize: 10,
+  lineHeight: 1.2,
+}
+
+const indicatorLegendItemStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  whiteSpace: 'nowrap',
+}
+
+const indicatorLegendSwatchStyle: React.CSSProperties = {
+  width: 14,
+  height: 2,
+  borderRadius: 1,
+  background: terminalTheme.muted,
+}
+
 const chartStageStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -779,11 +805,13 @@ function chartStyles(): DeepPartial<Styles> {
       },
     },
     indicator: {
-      lines: [
-        { color: tradingDeskTheme.chart.orange, size: 1, style: 'solid' },
-        { color: tradingDeskTheme.chart.line, size: 1, style: 'solid' },
-        { color: tradingDeskTheme.chart.violet, size: 1, style: 'solid' },
-        { color: tradingDeskTheme.market.down, size: 1, style: 'solid' },
+      lines: MA_COLORS.map(color => ({ color, size: 1, style: 'solid' })),
+      bars: [
+        {
+          upColor: tradingDeskTheme.market.up,
+          downColor: tradingDeskTheme.market.down,
+          noChangeColor: tradingDeskTheme.market.flat,
+        },
       ],
       tooltip: {
         text: {
@@ -816,6 +844,113 @@ function chartStyles(): DeepPartial<Styles> {
       size: 1,
     },
   }
+}
+
+function maPeriodsForFreq(freq?: string): number[] {
+  const normalized = String(freq ?? '').toLowerCase()
+  if (normalized.includes('week') || normalized === 'w' || normalized === '1w') {
+    return [5, 10, 20, 50]
+  }
+  if (normalized.includes('day') || normalized === 'd' || normalized === '1d' || normalized === 'daily') {
+    return [5, 10, 20, 50, 60, 200]
+  }
+  return [5, 10, 20, 60]
+}
+
+function maIndicatorStyles(periods: number[]): Record<string, unknown> {
+  return {
+    lines: periods.map((period, index) => ({
+      color: MA_COLORS[index % MA_COLORS.length],
+      size: period >= 100 ? 1 : 1.2,
+      style: 'solid',
+    })),
+  }
+}
+
+function macdIndicatorStyles(): Record<string, unknown> {
+  return {
+    lines: MACD_LINE_COLORS.map(color => ({ color, size: 1.2, style: 'solid' })),
+    bars: [
+      {
+        upColor: tradingDeskTheme.market.up,
+        downColor: tradingDeskTheme.market.down,
+        noChangeColor: tradingDeskTheme.market.flat,
+      },
+    ],
+  }
+}
+
+function macdZeroIndicatorStyles(): Record<string, unknown> {
+  return {
+    lines: [
+      {
+        color: tradingDeskTheme.alpha.textBorderStrong,
+        size: 1,
+        style: 'dashed',
+        dashedValue: [4, 4],
+      },
+    ],
+    tooltip: { showName: false, showParams: false },
+  }
+}
+
+function ensureMacdZeroIndicator() {
+  if (macdZeroIndicatorRegistered) return
+  registerIndicator<{ zero: number }>({
+    name: MACD_ZERO_INDICATOR_NAME,
+    shortName: 'MACD 0',
+    precision: 2,
+    calcParams: [],
+    shouldOhlc: false,
+    shouldFormatBigNumber: false,
+    series: IndicatorSeries.Normal,
+    figures: [{ key: 'zero', title: '0轴: ', type: 'line' }],
+    calc: dataList => dataList.map(() => ({ zero: 0 })),
+  })
+  macdZeroIndicatorRegistered = true
+}
+
+function applyMovingAverageIndicator(chart: Chart, freq?: string) {
+  const periods = maPeriodsForFreq(freq)
+  chart.overrideIndicator(
+    {
+      name: 'MA',
+      calcParams: periods,
+      styles: maIndicatorStyles(periods),
+    },
+    CANDLE_PANE_ID,
+  )
+}
+
+function createChartIndicators(chart: Chart, freq?: string) {
+  const periods = maPeriodsForFreq(freq)
+  chart.createIndicator(
+    {
+      name: 'MA',
+      calcParams: periods,
+      styles: maIndicatorStyles(periods),
+    },
+    true,
+    { id: CANDLE_PANE_ID },
+  )
+  chart.createIndicator('VOL', false, { minHeight: 64, height: 82 })
+  chart.createIndicator(
+    {
+      name: 'MACD',
+      calcParams: MACD_PARAMS,
+      styles: macdIndicatorStyles(),
+    },
+    false,
+    { id: MACD_PANE_ID, minHeight: 86, height: 116 },
+  )
+  chart.createIndicator(
+    {
+      name: MACD_ZERO_INDICATOR_NAME,
+      styles: macdZeroIndicatorStyles(),
+    },
+    true,
+    { id: MACD_PANE_ID },
+  )
 }
 
 function ensureSignalOverlay() {
@@ -1414,6 +1549,7 @@ export function StrategyChartTerminal({
     compactText(symbolData?.target?.symbol) ||
     compactText(symbolData?.target?.kind, target.kind)
   const currentFreq = symbolData?.target?.effective_freq ?? target.freq
+  const activeMaPeriods = useMemo(() => maPeriodsForFreq(currentFreq), [currentFreq])
   const requestedFreq = symbolData?.target?.requested_freq
   const effectiveFreq = symbolData?.target?.effective_freq
   const freqFallbackNotice =
@@ -1596,6 +1732,7 @@ export function StrategyChartTerminal({
   useEffect(() => {
     if (!chartContainerRef.current) return
     ensureSignalOverlay()
+    ensureMacdZeroIndicator()
     const chart = init(chartContainerRef.current, {
       locale: locale === 'zh-CN' ? 'zh-CN' : 'en-US',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -1605,8 +1742,7 @@ export function StrategyChartTerminal({
     chartRef.current = chart
     chart.setBarSpace(8)
     chart.setOffsetRightDistance(36)
-    chart.createIndicator('MA', true, { id: 'candle_pane' })
-    chart.createIndicator('VOL')
+    createChartIndicators(chart, target.freq)
     resizeObserverRef.current = new ResizeObserver(() => {
       if (resizeFrameRef.current !== null) {
         window.cancelAnimationFrame(resizeFrameRef.current)
@@ -1628,6 +1764,12 @@ export function StrategyChartTerminal({
       dispose(chart)
     }
   }, [baseUrl, locale])
+
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    applyMovingAverageIndicator(chart, currentFreq)
+  }, [currentFreq])
 
   useEffect(() => {
     const chart = chartRef.current
