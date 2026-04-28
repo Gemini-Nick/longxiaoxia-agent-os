@@ -729,6 +729,130 @@ const watchlistControlRowStyle: React.CSSProperties = {
   minWidth: 0,
 }
 
+const chainVizShellStyle: React.CSSProperties = {
+  border: `1px solid ${terminalTheme.border}`,
+  borderRadius: 5,
+  background: terminalTheme.panelInset,
+  padding: 6,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  minWidth: 0,
+}
+
+const chainVizGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))',
+  gap: 5,
+}
+
+const chainVizNodeStyle: React.CSSProperties = {
+  border: `1px solid ${terminalTheme.borderMuted}`,
+  borderRadius: 5,
+  background: terminalTheme.panelSoft,
+  color: terminalTheme.text,
+  cursor: 'pointer',
+  fontFamily: fontStacks.ui,
+  padding: 6,
+  minWidth: 0,
+  textAlign: 'left',
+}
+
+const chainVizNodeActiveStyle: React.CSSProperties = {
+  ...chainVizNodeStyle,
+  border: `1px solid ${terminalTheme.accent}`,
+  background: terminalTheme.accentSoft,
+}
+
+const chainVizTopLineStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 6,
+  minWidth: 0,
+}
+
+const chainVizTitleStyle: React.CSSProperties = {
+  color: terminalTheme.textStrong,
+  fontSize: 11,
+  fontWeight: 800,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
+
+const chainVizMetricStyle: React.CSSProperties = {
+  fontFamily: fontStacks.mono,
+  fontSize: 11,
+  fontWeight: 800,
+  whiteSpace: 'nowrap',
+}
+
+const chainVizMetaStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 4,
+  marginTop: 5,
+  minWidth: 0,
+}
+
+const chainVizChipStyle: React.CSSProperties = {
+  border: `1px solid ${terminalTheme.borderMuted}`,
+  borderRadius: 4,
+  padding: '1px 4px',
+  color: terminalTheme.mutedStrong,
+  fontFamily: fontStacks.mono,
+  fontSize: 9,
+  maxWidth: '100%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
+
+const chainVizMapStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'auto 12px minmax(0, 0.8fr) 12px minmax(0, 1.2fr)',
+  alignItems: 'center',
+  gap: 3,
+  marginTop: 6,
+  minWidth: 0,
+}
+
+const chainVizNodePillStyle: React.CSSProperties = {
+  ...chainVizChipStyle,
+  color: terminalTheme.text,
+  borderColor: terminalTheme.borderMuted,
+  background: tradingDeskTheme.alpha.textHairline,
+}
+
+const chainVizDomainRailStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 3,
+  minWidth: 0,
+  overflow: 'hidden',
+}
+
+const chainVizConnectorStyle: React.CSSProperties = {
+  height: 1,
+  minWidth: 10,
+  background: terminalTheme.borderMuted,
+}
+
+const chainVizBarTrackStyle: React.CSSProperties = {
+  height: 4,
+  borderRadius: 2,
+  marginTop: 6,
+  background: tradingDeskTheme.alpha.textHairline,
+  overflow: 'hidden',
+}
+
+const chainVizBarStyle: React.CSSProperties = {
+  height: '100%',
+  borderRadius: 2,
+}
+
 const watchlistTabButtonStyle: React.CSSProperties = {
   border: `1px solid ${terminalTheme.border}`,
   borderRadius: 5,
@@ -2249,11 +2373,17 @@ function signalForWatchlist(row: Record<string, unknown>, kind: string): string 
 function tagsForWatchlist(row: Record<string, unknown>, kind: string): string[] {
   const mapping = recordValue(row.mapping_chain)
   const carrier = recordValue(row.carrier)
+  const chainContext = recordValue(row.chain_context)
   const tags = [
     ...stringArrayValue(row.theme_tags),
+    ...stringArrayValue(row.source_tags),
     compactText(row.trader_action),
+    compactText(row.signal_origin),
+    compactText(row.signal_family),
     compactText(mapping.chain_name),
     compactText(mapping.node_name),
+    compactText(chainContext.chain_id),
+    compactText(chainContext.node_id),
     compactText(carrier.name),
     compactText(row.source),
   ].filter(Boolean)
@@ -3673,6 +3803,14 @@ function WatchlistTabbedTable({
           </select>
         </label>
       </div>
+      {activeTab === 'sector_boards' ? (
+        <ChainHeatVisualization
+          locale={locale}
+          rows={rows}
+          target={target}
+          onSelect={onSelect}
+        />
+      ) : null}
       <WatchlistTable
         locale={locale}
         activeTab={activeTab}
@@ -3755,6 +3893,136 @@ function sectorCarrierForWatchlist(row: WatchlistRow, locale: LongclawLocale): s
   if (coreName) return `${coreLabel} ${coreName}`
   if (elasticName) return `${elasticLabel} ${elasticName}`
   return compactText(row.signal) || (locale === 'zh-CN' ? '待映射' : 'Unmapped')
+}
+
+function chainPhaseLabel(phase: string, locale: LongclawLocale): string {
+  const labels: Record<string, [string, string]> = {
+    accelerating: ['加速', 'Accel'],
+    warming: ['升温', 'Warm'],
+    diverging: ['背离', 'Diverge'],
+    cooling: ['降温', 'Cool'],
+    risk_off: ['风险', 'Risk'],
+  }
+  const label = labels[phase]
+  if (!label) return phase || (locale === 'zh-CN' ? '观察' : 'Watch')
+  return locale === 'zh-CN' ? label[0] : label[1]
+}
+
+function chainPhaseTone(phase: string): React.CSSProperties {
+  if (phase === 'accelerating') return { color: tradingDeskTheme.market.up, borderColor: tradingDeskTheme.market.up }
+  if (phase === 'warming') return { color: terminalTheme.accentText, borderColor: terminalTheme.accent }
+  if (phase === 'diverging') return { color: '#e0a83a', borderColor: '#8a6726' }
+  if (phase === 'cooling') return { color: '#7aa7ff', borderColor: '#35548c' }
+  if (phase === 'risk_off') return { color: tradingDeskTheme.market.down, borderColor: tradingDeskTheme.market.down }
+  return {}
+}
+
+function chainSignalLabel(value: unknown, locale: LongclawLocale): string {
+  const signal = compactText(value)
+  const labels: Record<string, [string, string]> = {
+    chain_acceleration: ['链加速', 'Chain accel'],
+    chain_warming: ['链升温', 'Chain warm'],
+    chain_divergence: ['热度背离', 'Divergence'],
+    chain_cooling: ['链降温', 'Cooling'],
+    chain_risk_off: ['链风险', 'Risk off'],
+  }
+  const label = labels[signal]
+  if (!label) return signal || (locale === 'zh-CN' ? '观察' : 'Watch')
+  return locale === 'zh-CN' ? label[0] : label[1]
+}
+
+function chainDomainLabels(row: WatchlistRow): string[] {
+  const domains = Array.isArray(row.raw.integrated_domains) ? row.raw.integrated_domains : []
+  return domains
+    .map(item => compactText(recordValue(item).name))
+    .filter(Boolean)
+    .slice(0, 3)
+}
+
+function chainNodeLabel(row: WatchlistRow): string {
+  return compactText(row.raw.node_name) || compactText(row.raw.stage) || compactText(row.raw.layer) || row.name
+}
+
+function chainStageLabel(row: WatchlistRow): string {
+  return compactText(row.raw.stage) || compactText(row.raw.layer) || compactText(row.raw.chain_name) || row.typeLabel
+}
+
+function chainVizBarColor(phase: string): string {
+  if (phase === 'risk_off') return tradingDeskTheme.market.down
+  if (phase === 'cooling') return '#3f7ee8'
+  if (phase === 'diverging') return '#d0902f'
+  if (phase === 'accelerating') return tradingDeskTheme.market.up
+  return terminalTheme.accent
+}
+
+function ChainHeatVisualization({
+  locale,
+  rows,
+  target,
+  onSelect,
+}: {
+  locale: LongclawLocale
+  rows: WatchlistRow[]
+  target: ChartTarget
+  onSelect: (row: WatchlistRow) => void
+}) {
+  const chainRows = rows
+    .filter(row => compactText(row.raw.source) === 'chain_heat_snapshots' || compactText(row.raw.domain) === 'chain_heat')
+    .slice(0, 6)
+  if (chainRows.length === 0) return null
+  const maxHeat = Math.max(...chainRows.map(row => numberValue(row.raw.heat_score) ?? 0), 1)
+  return (
+    <div style={chainVizShellStyle}>
+      <div style={chainVizGridStyle}>
+        {chainRows.map(row => {
+          const phase = compactText(row.raw.phase)
+          const heat = numberValue(row.raw.heat_score) ?? 0
+          const width = `${Math.max(8, Math.min(100, (heat / maxHeat) * 100))}%`
+          const active = watchlistRowIsActive(row, target)
+          const domains = chainDomainLabels(row)
+          return (
+            <button
+              key={`chain-viz-${row.id}`}
+              type="button"
+              style={active ? chainVizNodeActiveStyle : chainVizNodeStyle}
+              onClick={() => onSelect(row)}
+              title={[
+                row.name,
+                chainSignalLabel(row.raw.trading_signal, locale),
+                domains.join('/'),
+              ].filter(Boolean).join(' · ')}
+            >
+              <div style={chainVizTopLineStyle}>
+                <div style={chainVizTitleStyle}>{row.name}</div>
+                <div style={{ ...chainVizMetricStyle, ...percentTone(row.dayChange) }}>{row.dayChange}</div>
+              </div>
+              <div style={chainVizBarTrackStyle}>
+                <div style={{ ...chainVizBarStyle, width, background: chainVizBarColor(phase) }} />
+              </div>
+              <div style={chainVizMapStyle}>
+                <span style={chainVizChipStyle}>{chainStageLabel(row)}</span>
+                <span style={chainVizConnectorStyle} />
+                <span style={chainVizNodePillStyle}>{chainNodeLabel(row)}</span>
+                <span style={chainVizConnectorStyle} />
+                <span style={chainVizDomainRailStyle}>
+                  {domains.map(domain => (
+                    <span key={`${row.id}-domain-${domain}`} style={chainVizChipStyle}>{domain}</span>
+                  ))}
+                </span>
+              </div>
+              <div style={chainVizMetaStyle}>
+                <span style={{ ...chainVizChipStyle, ...chainPhaseTone(phase) }}>{chainPhaseLabel(phase, locale)}</span>
+                <span style={chainVizChipStyle}>{chainSignalLabel(row.raw.trading_signal, locale)}</span>
+                <span style={chainVizChipStyle}>5m {formatNumber(row.raw.momentum_5m)}</span>
+                <span style={chainVizChipStyle}>15m {formatNumber(row.raw.momentum_15m)}</span>
+                <span style={chainVizChipStyle}>30m {formatNumber(row.raw.momentum_30m)}</span>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function WatchlistTable({
