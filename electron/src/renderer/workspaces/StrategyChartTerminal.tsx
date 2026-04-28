@@ -231,6 +231,8 @@ const FREQ_OPTIONS: FrequencyOption[] = [
   { value: 'daily', label: '日' },
   { value: 'weekly', label: '周' },
 ]
+const DEFAULT_TERMINAL_FREQ = '30min'
+const DEFAULT_AVAILABLE_FREQS = FREQ_OPTIONS.map(option => option.value)
 const WATCHLIST_RANGE_COLUMNS: WatchlistRangeColumn[] = [
   { key: '5d', label: '5日', aliases: ['5d', '5日', 'week', '1w', '1week', 'weekly'] },
   { key: '20d', label: '20日', aliases: ['20d', '20日', 'month', '1m', '1month', 'monthly'] },
@@ -1960,13 +1962,21 @@ function initialTargetFrom(
       buyCandidate?.symbol ??
       '上证指数',
     kind: shellTarget?.kind ?? inferredKind,
-    freq: shellTarget?.freq ?? chartContext?.freq ?? 'daily',
+    freq: DEFAULT_TERMINAL_FREQ,
   }
 }
 
 function availableFreqs(symbolData: WorkbenchSymbolData | null): string[] {
   const freqs = symbolData?.target?.available_freqs
-  return Array.isArray(freqs) && freqs.length > 0 ? freqs : ['daily']
+  return Array.isArray(freqs) && freqs.length > 0 ? freqs : DEFAULT_AVAILABLE_FREQS
+}
+
+function terminalListTargetFreq(value: unknown, fallback?: string): string {
+  const normalized = compactText(value)
+  if (normalized && normalized !== 'daily' && normalized !== 'weekly') return normalized
+  const fallbackFreq = compactText(fallback)
+  if (fallbackFreq && fallbackFreq !== 'daily' && fallbackFreq !== 'weekly') return fallbackFreq
+  return DEFAULT_TERMINAL_FREQ
 }
 
 function formatNumber(value: unknown, digits = 2): string {
@@ -2024,13 +2034,15 @@ function sourceConfidenceLabel(row: Record<string, unknown>): string {
   return labels[key] || compactText(row.label) || compactText(row.name) || compactText(row.source) || key || 'Source'
 }
 
-function readableTime(value?: Date | null, locale: LongclawLocale = 'zh-CN'): string {
+function readableTime(value?: Date | null, locale: LongclawLocale = 'zh-CN', timeZone?: string): string {
   if (!value) return ''
-  return value.toLocaleTimeString(locale === 'zh-CN' ? 'zh-CN' : 'en-US', {
+  const options: Intl.DateTimeFormatOptions = {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-  })
+  }
+  if (timeZone) options.timeZone = timeZone
+  return value.toLocaleTimeString(locale === 'zh-CN' ? 'zh-CN' : 'en-US', options)
 }
 
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
@@ -2359,7 +2371,7 @@ function toWatchlistRow(
     explanation: compactText(row.explanation),
     targetKind,
     targetLabel,
-    targetFreq: compactText(row.target_freq) || (kind === 'industry' || kind === 'concept' ? 'daily' : ''),
+    targetFreq: terminalListTargetFreq(row.target_freq),
     raw: row,
   }
 }
@@ -2608,6 +2620,9 @@ export function StrategyChartTerminal({
   const currentFreq = symbolData?.target?.effective_freq ?? target.freq
   const layoutMode = terminalLayoutMode(viewportWidth)
   const chartTimezone = useMemo(() => chartMarketTimezone(symbolData, shell), [shell, symbolData])
+  const updatedTimeLabel =
+    compactText(shell?.session?.data_as_of) ||
+    (lastUpdated ? readableTime(lastUpdated, locale, chartTimezone) : '')
   const activeMaPeriods = useMemo(() => maPeriodsForFreq(currentFreq), [currentFreq])
   const divergences = useMemo(() => macdDivergences(klineData, currentFreq), [currentFreq, klineData])
   const chartKeyLevels = useMemo(
@@ -2658,7 +2673,7 @@ export function StrategyChartTerminal({
           baseUrl,
           `/api/workbench/symbol/${encodeURIComponent(nextTarget.label)}?${new URLSearchParams({
             kind: nextTarget.kind || 'auto',
-            freq: nextTarget.freq || 'daily',
+            freq: nextTarget.freq || DEFAULT_TERMINAL_FREQ,
           }).toString()}`,
           options.signal,
           'strategy.symbol',
@@ -2938,7 +2953,7 @@ export function StrategyChartTerminal({
       if (!value) return
       const isIndex = indexTargets.some(row => targetMatchesSearchValue(row, value)) || looksLikeIndexValue(value)
       selectTarget(
-        { label: value, kind: isIndex ? 'index' : 'auto', freq: target.freq || 'daily' },
+        { label: value, kind: isIndex ? 'index' : 'auto', freq: target.freq || DEFAULT_TERMINAL_FREQ },
         'strategy.search.submit',
       )
     },
@@ -3241,7 +3256,7 @@ export function StrategyChartTerminal({
                   {
                     label: row.targetLabel || row.label,
                     kind: row.targetKind || row.kind,
-                    freq: row.targetFreq || target.freq,
+                    freq: terminalListTargetFreq(row.targetFreq, target.freq),
                   },
                   'strategy.watchlist.click',
                 )
@@ -3319,8 +3334,8 @@ export function StrategyChartTerminal({
                   </span>
                 </div>
                 <div style={mutedTextStyle}>
-                  {lastUpdated
-                    ? `${locale === 'zh-CN' ? '更新' : 'Updated'} ${readableTime(lastUpdated, locale)}`
+                  {updatedTimeLabel
+                    ? `${locale === 'zh-CN' ? '更新' : 'Updated'} ${updatedTimeLabel}`
                     : (locale === 'zh-CN' ? '等待数据' : 'Waiting for data')}
                 </div>
               </div>
