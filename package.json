@@ -1,20 +1,20 @@
 {
-  "name": "@shipany/open-agent-sdk",
+  "name": "chan-ai-agent-os",
   "author": {
-    "name": "ShipAny",
-    "url": "https://shipany.ai"
+    "name": "chan.AI",
+    "url": "https://github.com/Gemini-Nick"
   },
-  "homepage": "https://github.com/shipany-ai/open-agent-sdk",
+  "homepage": "https://github.com/Gemini-Nick/longclaw-agent-os",
   "repository": {
     "type": "git",
-    "url": "https://github.com/shipany-ai/open-agent-sdk.git"
+    "url": "https://github.com/Gemini-Nick/longclaw-agent-os.git"
   },
   "bugs": {
-    "url": "https://github.com/shipany-ai/open-agent-sdk/issues"
+    "url": "https://github.com/Gemini-Nick/longclaw-agent-os/issues"
   },
   "version": "0.1.7",
   "packageManager": "npm@11.12.1",
-  "description": "Open-source Agent SDK inspired by @anthropic-ai/claude-agent-sdk. Runs the agent loop in-process — no local CLI required. Deploy anywhere: cloud, serverless, Docker, CI/CD.",
+  "description": "Local-first chan.AI workbench and runtime for the trader's second screen.",
   "type": "module",
   "main": "./dist/sdk.js",
   "types": "./dist/sdk.d.ts",
@@ -161,16 +161,16 @@
   ],
   "license": "MIT",
   "keywords": [
-    "open-agent-sdk",
-    "shipany",
+    "chan-ai",
+    "chan-theory",
+    "trading-workbench",
+    "signals",
+    "second-screen",
     "agent",
-    "sdk",
-    "claude",
-    "anthropic",
     "ai",
     "llm",
-    "tools",
-    "agentic",
-    "coding-agent"
+    "mcp",
+    "electron",
+    "local-first"
   ]
 }

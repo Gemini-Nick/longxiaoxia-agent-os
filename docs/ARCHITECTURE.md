@@ -1,6 +1,10 @@
-# Longclaw Agent OS Architecture
+# chan.AI Agent OS Architecture
 
-`longclaw-agent-os` is the current `Client Runtime（端侧）` reference implementation for the Longclaw product line. In phase 1 it is more than an installer shell: it is the default home, the governance surface host, and the local `Capability Substrate` host for Longclaw.
+`chan.AI Agent OS` is the public product brand for this repository.
+
+`longclaw-agent-os` is the current `Client Runtime（端侧）` reference implementation for the chan.AI product line. In phase 1 it is more than an installer shell: it is the default home, the governance surface host, and the local `Capability Substrate` host.
+
+Existing code, environment variables, and older docs may still use `Longclaw` naming for compatibility. Do not rename runtime identifiers unless the migration is planned and tested separately.
 
 It is not the final portable `Agent Core（云侧）`. `hermes-agent` remains the cloud-side core and architecture source of truth.
 

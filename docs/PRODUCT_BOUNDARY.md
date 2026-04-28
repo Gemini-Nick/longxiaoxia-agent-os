@@ -1,4 +1,6 @@
-# Longclaw Agent OS Product Boundary
+# chan.AI Agent OS Product Boundary
+
+`chan.AI Agent OS` is the public product brand for this repository. The repo name, historical docs, runtime labels, and environment variables may still use `Longclaw` naming for compatibility.
 
 这份仓库当前承担的是 `Client Runtime（端侧）` 参考实现，但在 phase 1 它同时也是 Longclaw 的 `default home`。
 

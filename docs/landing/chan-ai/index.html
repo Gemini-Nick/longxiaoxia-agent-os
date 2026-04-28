@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>chan.AI | 缠论AI</title>
+  <meta name="description" content="chan.AI is an AI-native Chan-theory trading framework for the trader's second screen.">
+  <style>
+    :root {
+      --ink: #121312;
+      --muted: #68706a;
+      --line: #d8ddd5;
+      --paper: #f7f8f3;
+      --panel: #ffffff;
+      --green: #1d6b43;
+      --red: #b7382e;
+      --amber: #b7791f;
+      --blue: #174c7c;
+      --carbon: #20241f;
+      --soft-green: #e8f2ea;
+      --soft-red: #f7e9e6;
+      --soft-blue: #e8eef6;
+      --font-display: Georgia, "Times New Roman", serif;
+      --font-body: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--paper);
+      color: var(--ink);
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font-body);
+      line-height: 1.55;
+    }
+
+    body[data-lang="en"] .zh,
+    body[data-lang="zh"] .en {
+      display: none !important;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .shell {
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(18, 19, 18, 0.04) 1px, transparent 1px) 0 0 / 72px 72px,
+        linear-gradient(rgba(18, 19, 18, 0.035) 1px, transparent 1px) 0 0 / 72px 72px,
+        var(--paper);
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 24px;
+      padding: 14px clamp(18px, 4vw, 56px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(247, 248, 243, 0.94);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      font-family: var(--font-display);
+      font-size: 24px;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .brand small {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .lang-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--carbon);
+      background: var(--panel);
+    }
+
+    .lang-tab {
+      appearance: none;
+      min-width: 72px;
+      min-height: 34px;
+      border: 0;
+      border-right: 1px solid var(--carbon);
+      background: transparent;
+      color: var(--carbon);
+      cursor: pointer;
+      font-family: var(--font-body);
+      font-size: 12px;
+    }
+
+    .lang-tab:last-child {
+      border-right: 0;
+    }
+
+    .lang-tab[aria-selected="true"] {
+      background: var(--carbon);
+      color: white;
+    }
+
+    .hero {
+      min-height: calc(100vh - 64px);
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(320px, 0.98fr);
+      gap: clamp(24px, 4vw, 64px);
+      align-items: center;
+      padding: clamp(44px, 7vw, 92px) clamp(18px, 4vw, 56px) 34px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      color: var(--green);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 36px;
+      height: 1px;
+      background: var(--green);
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 860px;
+      font-family: var(--font-display);
+      font-size: clamp(64px, 12vw, 156px);
+      line-height: 0.84;
+      letter-spacing: 0;
+    }
+
+    .hero-subtitle {
+      max-width: 760px;
+      margin: 26px 0 0;
+      font-size: clamp(17px, 2.2vw, 25px);
+      color: var(--carbon);
+    }
+
+    .hero-copy {
+      max-width: 700px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 30px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border: 1px solid var(--carbon);
+      background: var(--carbon);
+      color: white;
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    .button.secondary {
+      background: transparent;
+      color: var(--carbon);
+    }
+
+    .terminal {
+      position: relative;
+      border: 1px solid var(--carbon);
+      background: var(--panel);
+      box-shadow: 18px 18px 0 var(--carbon);
+      overflow: hidden;
+    }
+
+    .terminal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .market-tape {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .ticker {
+      padding: 14px;
+      border-right: 1px solid var(--line);
+    }
+
+    .ticker:last-child {
+      border-right: 0;
+    }
+
+    .ticker strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .ticker span {
+      color: var(--green);
+      font-size: 12px;
+    }
+
+    .ticker.down span {
+      color: var(--red);
+    }
+
+    .screen-grid {
+      display: grid;
+      grid-template-columns: 1fr 0.72fr;
+      min-height: 420px;
+    }
+
+    .chart {
+      position: relative;
+      padding: 22px 18px 18px;
+      border-right: 1px solid var(--line);
+      background:
+        linear-gradient(90deg, rgba(18, 19, 18, 0.06) 1px, transparent 1px) 0 0 / 52px 52px,
+        linear-gradient(rgba(18, 19, 18, 0.06) 1px, transparent 1px) 0 0 / 52px 52px;
+    }
+
+    .candles {
+      position: absolute;
+      inset: 64px 28px 42px 28px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 9px;
+    }
+
+    .candle {
+      position: relative;
+      width: 16px;
+      height: var(--h);
+      background: var(--green);
+    }
+
+    .candle::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: calc(var(--h) - 22px);
+      width: 1px;
+      height: calc(var(--wick) + 34px);
+      background: currentColor;
+      transform: translateX(-50%);
+    }
+
+    .candle.red {
+      background: var(--red);
+      color: var(--red);
+    }
+
+    .candle.green {
+      color: var(--green);
+    }
+
+    .level {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      height: 1px;
+      background: var(--amber);
+    }
+
+    .level.one {
+      top: 38%;
+    }
+
+    .level.two {
+      top: 61%;
+      background: var(--blue);
+    }
+
+    .level span {
+      position: absolute;
+      right: 0;
+      top: -18px;
+      padding: 2px 6px;
+      background: var(--paper);
+      color: var(--carbon);
+      font-size: 11px;
+      border: 1px solid currentColor;
+    }
+
+    .queue {
+      padding: 18px;
+      background: #fbfcf8;
+    }
+
+    .queue h2 {
+      margin: 0 0 14px;
+      font-family: var(--font-display);
+      font-size: 26px;
+      letter-spacing: 0;
+    }
+
+    .task {
+      padding: 13px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .task:first-of-type {
+      border-top: 0;
+    }
+
+    .task small {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+    }
+
+    .status {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 2px 7px;
+      border: 1px solid currentColor;
+      font-size: 11px;
+    }
+
+    .status.green {
+      color: var(--green);
+      background: var(--soft-green);
+    }
+
+    .status.red {
+      color: var(--red);
+      background: var(--soft-red);
+    }
+
+    .status.blue {
+      color: var(--blue);
+      background: var(--soft-blue);
+    }
+
+    section {
+      padding: 72px clamp(18px, 4vw, 56px);
+      border-top: 1px solid var(--line);
+    }
+
+    .section-head {
+      max-width: 840px;
+      margin-bottom: 36px;
+    }
+
+    h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(36px, 6vw, 76px);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 22px;
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      border: 1px solid var(--carbon);
+      background: var(--panel);
+    }
+
+    .pipe-step {
+      min-height: 150px;
+      padding: 18px;
+      border-right: 1px solid var(--line);
+    }
+
+    .pipe-step:last-child {
+      border-right: 0;
+    }
+
+    .pipe-step strong {
+      display: block;
+      margin-bottom: 10px;
+      font-family: var(--font-display);
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    .pipe-step span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .repo-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .repo {
+      display: flex;
+      flex-direction: column;
+      min-height: 260px;
+      padding: 24px;
+      border: 1px solid var(--carbon);
+      background: var(--panel);
+      text-decoration: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .repo:hover {
+      transform: translate(-4px, -4px);
+      box-shadow: 10px 10px 0 var(--carbon);
+    }
+
+    .repo h3 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 38px;
+      letter-spacing: 0;
+    }
+
+    .repo p {
+      margin: 16px 0 0;
+      color: var(--muted);
+    }
+
+    .repo code {
+      margin-top: auto;
+      padding-top: 28px;
+      color: var(--green);
+      font-size: 12px;
+      white-space: normal;
+    }
+
+    .footer {
+      padding: 36px clamp(18px, 4vw, 56px);
+      border-top: 1px solid var(--carbon);
+      background: var(--carbon);
+      color: white;
+    }
+
+    .footer p {
+      max-width: 960px;
+      margin: 0;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 12px;
+    }
+
+    @media (max-width: 960px) {
+      .nav {
+        grid-template-columns: 1fr;
+      }
+
+      .nav-links {
+        justify-content: flex-start;
+      }
+
+      .lang-tabs {
+        width: min(100%, 220px);
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .terminal {
+        box-shadow: 10px 10px 0 var(--carbon);
+      }
+
+      .cards,
+      .repo-grid,
+      .pipeline {
+        grid-template-columns: 1fr;
+      }
+
+      .pipe-step,
+      .ticker {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .pipe-step:last-child,
+      .ticker:last-child {
+        border-bottom: 0;
+      }
+
+      .market-tape,
+      .screen-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .chart {
+        min-height: 340px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+    }
+
+    @media (max-width: 620px) {
+      h1 {
+        font-size: clamp(58px, 18vw, 92px);
+      }
+
+      .hero-actions {
+        flex-direction: column;
+      }
+
+      .button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body data-lang="en">
+  <div class="shell">
+    <nav class="nav" aria-label="Main navigation">
+      <div class="brand">chan.AI <small>缠论AI</small></div>
+      <div class="nav-links">
+        <a href="#system"><span class="en">System</span><span class="zh">系统</span></a>
+        <a href="#workflow"><span class="en">Workflow</span><span class="zh">工作流</span></a>
+        <a href="#repos"><span class="en">Repos</span><span class="zh">仓库</span></a>
+        <a href="#roadmap"><span class="en">Roadmap</span><span class="zh">路线图</span></a>
+      </div>
+      <div class="lang-tabs" role="tablist" aria-label="Language">
+        <button class="lang-tab" type="button" role="tab" data-set-lang="en" aria-selected="true">EN</button>
+        <button class="lang-tab" type="button" role="tab" data-set-lang="zh" aria-selected="false">中文</button>
+      </div>
+    </nav>
+
+    <main>
+      <header class="hero">
+        <div>
+          <div class="eyebrow">
+            <span class="en">AI-native trading framework</span>
+            <span class="zh">AI 原生交易框架</span>
+          </div>
+          <h1>chan.AI</h1>
+          <p class="hero-subtitle">
+            <span class="en">Chan-theory AI for the trader's second screen.</span>
+            <span class="zh">缠论AI，给股票交易员的第二屏。</span>
+          </p>
+          <p class="hero-copy">
+            <span class="en">chan.AI watches A-shares, Hong Kong stocks, and US equities through a Chan-theory structure lens, then turns signal changes into evidence, research context, and reviewable decisions for a OnePersonCompany trader.</span>
+            <span class="zh">chan.AI 以缠论结构视角观察 A股、港股和美股，把信号变化转成证据、投研上下文和可审阅决策，服务 OnePersonCompany 股票交易员。</span>
+          </p>
+          <div class="hero-actions">
+            <a class="button" href="https://github.com/Gemini-Nick/longclaw-agent-os">
+              <span class="en">Open Agent OS</span>
+              <span class="zh">打开 Agent OS</span>
+            </a>
+            <a class="button secondary" href="https://github.com/Gemini-Nick/signals">
+              <span class="en">Open Signals</span>
+              <span class="zh">打开 Signals</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="terminal" aria-label="chan.AI product preview">
+          <div class="terminal-head">
+            <span class="en">Second screen live surface</span>
+            <span class="zh">第二屏实时工作台</span>
+            <span>A + H + US</span>
+          </div>
+          <div class="market-tape">
+            <div class="ticker"><strong>CSI 300</strong><span><span class="en">structure repair</span><span class="zh">结构修复</span></span></div>
+            <div class="ticker down"><strong>HK Tech</strong><span><span class="en">source check</span><span class="zh">数据源检查</span></span></div>
+            <div class="ticker"><strong>US AI</strong><span><span class="en">watchlist turn</span><span class="zh">自选转折</span></span></div>
+          </div>
+          <div class="screen-grid">
+            <div class="chart">
+              <div class="level one"><span><span class="en">1st buy area</span><span class="zh">一买区域</span></span></div>
+              <div class="level two"><span><span class="en">central pivot</span><span class="zh">中枢</span></span></div>
+              <div class="candles">
+                <i class="candle red" style="--h: 86px; --wick: 42px"></i>
+                <i class="candle red" style="--h: 122px; --wick: 64px"></i>
+                <i class="candle green" style="--h: 76px; --wick: 48px"></i>
+                <i class="candle red" style="--h: 142px; --wick: 76px"></i>
+                <i class="candle green" style="--h: 98px; --wick: 56px"></i>
+                <i class="candle green" style="--h: 166px; --wick: 92px"></i>
+                <i class="candle red" style="--h: 112px; --wick: 58px"></i>
+                <i class="candle green" style="--h: 184px; --wick: 84px"></i>
+                <i class="candle green" style="--h: 132px; --wick: 70px"></i>
+                <i class="candle red" style="--h: 92px; --wick: 52px"></i>
+              </div>
+            </div>
+            <aside class="queue">
+              <h2><span class="en">Decision Queue</span><span class="zh">决策队列</span></h2>
+              <div class="task">
+                <small>SH.688252 · 30m</small>
+                <span class="en">Review possible second buy after sector repair.</span>
+                <span class="zh">板块修复后，审阅潜在二买。</span>
+                <span class="status green"><span class="en">fresh evidence</span><span class="zh">证据新鲜</span></span>
+              </div>
+              <div class="task">
+                <small>HK.0700 · daily</small>
+                <span class="en">AI research note conflicts with chart context.</span>
+                <span class="zh">AI 投研笔记与图表上下文冲突。</span>
+                <span class="status blue"><span class="en">needs review</span><span class="zh">需要审阅</span></span>
+              </div>
+              <div class="task">
+                <small>NASDAQ AI basket</small>
+                <span class="en">Options extension blocked until risk layer exists.</span>
+                <span class="zh">期权扩展需等待风险层完成。</span>
+                <span class="status red"><span class="en">roadmap</span><span class="zh">路线图</span></span>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </header>
+
+      <section id="system">
+        <div class="section-head">
+          <h2><span class="en">Not another quote grid.</span><span class="zh">不是另一个行情表格。</span></h2>
+          <p>
+            <span class="en">The first screen shows the market. chan.AI decides what deserves attention, why it matters, and what evidence should be reviewed before the trader acts.</span>
+            <span class="zh">第一屏显示市场。chan.AI 判断什么值得注意、为什么重要，以及交易员行动前应该审阅哪些证据。</span>
+          </p>
+        </div>
+        <div class="cards">
+          <article class="card">
+            <h3><span class="en">Chan-theory structure</span><span class="zh">缠论结构</span></h3>
+            <p><span class="en">Level first. Structure second. Buy/sell point third. Full classification instead of prediction theater.</span><span class="zh">先级别，再结构，再买卖点。重点是完整分类，不是表演式预测。</span></p>
+          </article>
+          <article class="card">
+            <h3><span class="en">AI research context</span><span class="zh">AI 投研上下文</span></h3>
+            <p><span class="en">Research notes, market narratives, industry-chain mapping, and evidence are joined to the signal rather than floating in chat history.</span><span class="zh">研究笔记、市场叙事、产业链映射和证据都绑定到信号上，而不是散落在聊天记录里。</span></p>
+          </article>
+          <article class="card">
+            <h3><span class="en">Trader second screen</span><span class="zh">交易员第二屏</span></h3>
+            <p><span class="en">Candidates, warnings, chart context, source confidence, and decision queues stay visible while the first screen handles quotes and execution.</span><span class="zh">候选、预警、图表上下文、数据源置信度和决策队列保持可见，第一屏负责行情和执行。</span></p>
+          </article>
+        </div>
+      </section>
+
+      <section id="workflow">
+        <div class="section-head">
+          <h2><span class="en">The loop.</span><span class="zh">闭环。</span></h2>
+          <p>
+            <span class="en">chan.AI is built around a small number of repeatable actions that matter during live trading and post-market review.</span>
+            <span class="zh">chan.AI 围绕少数可重复动作构建，这些动作在盘中交易和盘后复盘时真正有用。</span>
+          </p>
+        </div>
+        <div class="pipeline">
+          <div class="pipe-step"><strong>01</strong><span class="en">Sync A/H/US market data and source freshness.</span><span class="zh">同步 A/H/美股数据和数据源新鲜度。</span></div>
+          <div class="pipe-step"><strong>02</strong><span class="en">Detect Chan structure, pivots, divergence, sector movement, and anomalies.</span><span class="zh">识别缠论结构、中枢、背驰、板块变化和异常。</span></div>
+          <div class="pipe-step"><strong>03</strong><span class="en">Build strategy_snapshot with chart_context and source_confidence.</span><span class="zh">生成带 chart_context 和 source_confidence 的 strategy_snapshot。</span></div>
+          <div class="pipe-step"><strong>04</strong><span class="en">Surface reviewable candidates in the Agent OS second screen.</span><span class="zh">在 Agent OS 第二屏呈现可审阅候选。</span></div>
+          <div class="pipe-step"><strong>05</strong><span class="en">Record decisions, observations, backtests, and research notes.</span><span class="zh">沉淀决策、观察、回测和投研笔记。</span></div>
+        </div>
+      </section>
+
+      <section id="repos">
+        <div class="section-head">
+          <h2><span class="en">Two repos. One product.</span><span class="zh">两个仓库，一个产品。</span></h2>
+          <p>
+            <span class="en">Signals produces evidence. Agent OS turns that evidence into a trader workflow. Keeping the split clean is the product architecture.</span>
+            <span class="zh">Signals 生产证据。Agent OS 把证据变成交易员工作流。保持这个拆分清晰，就是产品架构。</span>
+          </p>
+        </div>
+        <div class="repo-grid">
+          <a class="repo" href="https://github.com/Gemini-Nick/signals">
+            <h3>Signals</h3>
+            <p><span class="en">Chan-theory signal engine, data sync, industry-chain mapping, backtests, source confidence, and pack APIs.</span><span class="zh">缠论信号引擎、数据同步、产业链映射、回测、数据源置信度和 Pack API。</span></p>
+            <code>github.com/Gemini-Nick/signals</code>
+          </a>
+          <a class="repo" href="https://github.com/Gemini-Nick/longclaw-agent-os">
+            <h3>Agent OS</h3>
+            <p><span class="en">Electron second screen, decision queue, observations, evidence review, local runtime, and curated capabilities.</span><span class="zh">Electron 第二屏、决策队列、观察流、证据审阅、本地运行时和精选能力。</span></p>
+            <code>github.com/Gemini-Nick/longclaw-agent-os</code>
+          </a>
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <div class="section-head">
+          <h2><span class="en">Roadmap.</span><span class="zh">路线图。</span></h2>
+          <p>
+            <span class="en">Start with stocks where the loop is already usable. Extend only when the evidence model can handle the new risk surface.</span>
+            <span class="zh">先从已经能跑通闭环的股票开始。只有当证据模型能承载新的风险面时，再扩展到新品类。</span>
+          </p>
+        </div>
+        <div class="cards">
+          <article class="card">
+            <h3><span class="en">Now: A + H + US stocks</span><span class="zh">现在：A股 + 港股 + 美股</span></h3>
+            <p><span class="en">Signal discovery, AI research context, strategy snapshots, chart context, and post-market review.</span><span class="zh">信号挖掘、AI 投研上下文、策略快照、图表上下文和盘后复盘。</span></p>
+          </article>
+          <article class="card">
+            <h3><span class="en">Next: futures</span><span class="zh">下一步：期货</span></h3>
+            <p><span class="en">Reuse the structure and evidence loop, then add contract, roll, liquidity, and margin context.</span><span class="zh">复用结构和证据闭环，再补充合约、换月、流动性和保证金上下文。</span></p>
+          </article>
+          <article class="card">
+            <h3><span class="en">Later: US options</span><span class="zh">后续：美股期权</span></h3>
+            <p><span class="en">Add options-specific risk, Greeks, volatility, event, and scenario evidence before showing trades.</span><span class="zh">先加入期权专属风险、希腊值、波动率、事件和情景证据，再展示交易机会。</span></p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>
+        <span class="en">chan.AI is for observation, explanation, research, and review. It does not place trades, route orders, provide investment advice, or guarantee signal profitability. Trading decisions remain the user's responsibility.</span>
+        <span class="zh">chan.AI 用于观察、解释、研究和审阅。它不下单、不路由交易、不提供投资建议，也不保证信号收益。最终交易决策由用户自行承担。</span>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    const tabs = Array.from(document.querySelectorAll("[data-set-lang]"));
+    const setLang = (lang) => {
+      document.body.dataset.lang = lang;
+      document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+      localStorage.setItem("chan-ai-lang", lang);
+      tabs.forEach((tab) => {
+        tab.setAttribute("aria-selected", String(tab.dataset.setLang === lang));
+      });
+      document.title = lang === "zh" ? "chan.AI | 缠论AI" : "chan.AI | Chan-theory AI";
+      const description = document.querySelector("meta[name='description']");
+      if (description) {
+        description.content = lang === "zh"
+          ? "chan.AI 是面向交易员第二屏的 AI 原生缠论交易框架。"
+          : "chan.AI is an AI-native Chan-theory trading framework for the trader's second screen.";
+      }
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => setLang(tab.dataset.setLang));
+    });
+
+    const saved = localStorage.getItem("chan-ai-lang");
+    if (saved === "zh" || saved === "en") {
+      setLang(saved);
+    }
+  </script>
+</body>
+</html>
