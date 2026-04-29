@@ -64,8 +64,13 @@ type WorkbenchShell = {
   watchlist_groups?: {
     macro_indices?: Record<string, unknown>[]
     sector_boards?: Record<string, unknown>[]
+    buy_candidates?: Record<string, unknown>[]
     focus_stocks?: Record<string, unknown>[]
+    risk_stocks?: Record<string, unknown>[]
+    watch_stocks?: Record<string, unknown>[]
   }
+  watchlist_groups_meta?: Record<string, unknown>
+  kline_cache_coverage?: Record<string, unknown>
   watchlist_range_columns?: Record<string, unknown>[]
   cluster_summary?: Record<string, unknown>
   sync_lanes?: Record<string, unknown>
@@ -192,7 +197,7 @@ type WatchlistRow = {
   raw: Record<string, unknown>
 }
 
-type WatchlistTabKey = 'macro_indices' | 'sector_boards' | 'focus_stocks'
+type WatchlistTabKey = 'macro_indices' | 'sector_boards' | 'focus_stocks' | 'risk_stocks' | 'watch_stocks' | 'buy_candidates'
 type TerminalLayoutMode = 'cinema' | 'desk' | 'balanced' | 'focus'
 
 type ApiError = Error & {
@@ -2682,6 +2687,36 @@ function chartMarketTimezone(symbolData: WorkbenchSymbolData | null, shell: Work
   )
 }
 
+function chartLineageLabel(symbolData: WorkbenchSymbolData | null, locale: LongclawLocale): string {
+  const meta = recordValue(symbolData?.chart?.meta)
+  if (Object.keys(meta).length === 0) return ''
+  const source = compactText(meta.source)
+  const collection = compactText(meta.collection)
+  const cacheStatus = compactText(meta.cache_status)
+  const latest = compactText(meta.latest_bar_time) || compactText(meta.data_as_of) || compactText(meta.as_of)
+  const semantics = compactText(meta.time_semantics)
+  const type = compactText(meta.display_name) || (compactText(meta.chart_type) === 'heat_ohlc'
+    ? (locale === 'zh-CN' ? '热度K线/涨跌幅OHLC' : 'Heat OHLC')
+    : '')
+  return [
+    type,
+    source ? `${locale === 'zh-CN' ? '来源' : 'Source'} ${source}` : '',
+    collection && collection !== source ? `${locale === 'zh-CN' ? '集合' : 'Collection'} ${collection}` : '',
+    cacheStatus ? `${locale === 'zh-CN' ? '缓存' : 'Cache'} ${cacheStatus}` : '',
+    latest ? `${locale === 'zh-CN' ? '最新' : 'Latest'} ${latest}` : '',
+    semantics ? `${locale === 'zh-CN' ? '时间' : 'Time'} ${semantics}` : '',
+  ].filter(Boolean).join(' · ')
+}
+
+function chartFormulaLabel(symbolData: WorkbenchSymbolData | null, locale: LongclawLocale): string {
+  const meta = recordValue(symbolData?.chart?.meta)
+  const formula = recordValue(meta.ohlc_formula)
+  if (Object.keys(formula).length === 0) return ''
+  return locale === 'zh-CN'
+    ? `公式 O=${compactText(formula.open)} H=${compactText(formula.high)} L=${compactText(formula.low)} C=${compactText(formula.close)}`
+    : `Formula O=${compactText(formula.open)} H=${compactText(formula.high)} L=${compactText(formula.low)} C=${compactText(formula.close)}`
+}
+
 function labelForTarget(row: Record<string, unknown>): string {
   return (
     stringValue(row.label) ??
@@ -3156,9 +3191,12 @@ export function StrategyChartTerminal({
     const sectorRows = Array.isArray(groups.sector_boards) && groups.sector_boards.length > 0
       ? groups.sector_boards
       : clusterRows
-    const focusRows = Array.isArray(groups.focus_stocks) && groups.focus_stocks.length > 0
-      ? groups.focus_stocks
+    const candidateRows = Array.isArray(groups.buy_candidates) && groups.buy_candidates.length > 0
+      ? groups.buy_candidates
       : buyRows
+    const focusRows = Array.isArray(groups.focus_stocks) ? groups.focus_stocks : []
+    const riskRows = Array.isArray(groups.risk_stocks) ? groups.risk_stocks : []
+    const watchRows = Array.isArray(groups.watch_stocks) ? groups.watch_stocks : []
     const legacyRows = buildWatchlistRows({
       watchlist: shellWatchlist,
       indices: indexTargets,
@@ -3171,13 +3209,28 @@ export function StrategyChartTerminal({
     return {
       macro_indices: buildRowsForGroup(macroRows, 'index', visibleRangeColumns),
       sector_boards: buildRowsForGroup(sectorRows, 'industry', visibleRangeColumns),
+      buy_candidates: buildRowsForGroup(candidateRows, 'stock', visibleRangeColumns),
       focus_stocks: buildRowsForGroup(focusRows, 'stock', visibleRangeColumns),
+      risk_stocks: buildRowsForGroup(riskRows, 'stock', visibleRangeColumns),
+      watch_stocks: buildRowsForGroup(watchRows, 'stock', visibleRangeColumns),
       legacy: legacyRows,
     }
   }, [buyRows, clusterRows, decisionRows, indexTargets, sellRows, shell?.watchlist_groups, shellWatchlist, visibleRangeColumns])
   const activeWatchlistRows = groupedWatchlistRows[activeWatchlistTab].length > 0
     ? groupedWatchlistRows[activeWatchlistTab]
-    : groupedWatchlistRows.legacy
+    : (activeWatchlistTab === 'macro_indices' || activeWatchlistTab === 'sector_boards' ? groupedWatchlistRows.legacy : [])
+  const focusGroupMeta = recordValue(recordValue(shell?.watchlist_groups_meta).focus_stocks)
+  const activeWatchlistEmptyText = activeWatchlistTab === 'focus_stocks'
+    ? (compactText(focusGroupMeta.empty_reason)
+      ? `${locale === 'zh-CN' ? '真实买点为空' : 'Entry pool empty'}: ${compactText(focusGroupMeta.empty_reason)}`
+      : (locale === 'zh-CN' ? '真实买点为空，观察/预热和策略候选已拆开。' : 'Entry pool is empty. Watch and strategy candidates are separate.'))
+    : activeWatchlistTab === 'risk_stocks'
+      ? (locale === 'zh-CN' ? '暂无风险/止盈止损。' : 'No risk controls.')
+      : activeWatchlistTab === 'watch_stocks'
+        ? (locale === 'zh-CN' ? '暂无观察/预热标的。' : 'No watch/preheat stocks.')
+    : activeWatchlistTab === 'buy_candidates'
+      ? (locale === 'zh-CN' ? '暂无策略候选。' : 'No strategy candidates.')
+      : (locale === 'zh-CN' ? '等待 Signals shell。' : 'Waiting for Signals shell.')
   const latestSignal = compactText(symbolData?.summary?.latest_signal, dashboard.chart_context?.latest_signal ?? '')
   const summaryTitle =
     compactText(symbolData?.summary?.title) ||
@@ -3194,6 +3247,12 @@ export function StrategyChartTerminal({
   )
   const layoutMode = terminalLayoutMode(viewportWidth)
   const chartTimezone = useMemo(() => chartMarketTimezone(symbolData, shell), [shell, symbolData])
+  const chartLineage = useMemo(() => chartLineageLabel(symbolData, locale), [locale, symbolData])
+  const chartFormula = useMemo(() => chartFormulaLabel(symbolData, locale), [locale, symbolData])
+  const chartMeta = recordValue(symbolData?.chart?.meta)
+  const primaryValueLabel = chartMeta.is_price_kline === false
+    ? (locale === 'zh-CN' ? '热度收盘' : 'Heat close')
+    : (locale === 'zh-CN' ? '最新价' : 'Last')
   const updatedTimeLabel =
     compactText(shell?.session?.data_as_of) ||
     (lastUpdated ? readableTime(lastUpdated, locale, chartTimezone) : '')
@@ -3834,7 +3893,7 @@ export function StrategyChartTerminal({
               allRangeColumns={watchlistRangeColumns}
               selectedRangeKey={selectedRangeColumn?.key ?? ''}
               onRangeChange={setSelectedRangeKey}
-              emptyText={locale === 'zh-CN' ? '等待 Signals shell。' : 'Waiting for Signals shell.'}
+              emptyText={activeWatchlistEmptyText}
               onSelect={row =>
                 selectTarget(
                   {
@@ -3860,6 +3919,12 @@ export function StrategyChartTerminal({
               <div style={chartSubtitleStyle}>
                 {[summarySubtitle, currentFreq, chartTimezone, latestSignal || undefined].filter(Boolean).join(' · ')}
               </div>
+              {chartLineage ? (
+                <div style={mutedTextStyle}>{chartLineage}</div>
+              ) : null}
+              {chartFormula ? (
+                <div style={mutedTextStyle}>{chartFormula}</div>
+              ) : null}
               <div style={indicatorLegendStyle}>
                 {activeMaPeriods.map((period, index) => (
                   <span key={`ma-${period}`} style={indicatorLegendItemStyle}>
@@ -3892,7 +3957,7 @@ export function StrategyChartTerminal({
             <div style={chartHeaderRightStyle(layoutMode)}>
               <div style={headerMetricsStyle(layoutMode)}>
                 {[
-                  [locale === 'zh-CN' ? '最新价' : 'Last', formatNumber(symbolData?.summary?.latest_price ?? latestClose(klineData))],
+                  [primaryValueLabel, formatNumber(symbolData?.summary?.latest_price ?? latestClose(klineData))],
                   [locale === 'zh-CN' ? '信号' : 'Signal', latestSignal || 'N/A'],
                   [locale === 'zh-CN' ? '涨幅' : 'Change', formatPercent(symbolData?.summary?.gain_pct)],
                 ].map(([label, value]) => (
@@ -4500,7 +4565,10 @@ function WatchlistTabbedTable({
   groups: {
     macro_indices: WatchlistRow[]
     sector_boards: WatchlistRow[]
+    buy_candidates: WatchlistRow[]
     focus_stocks: WatchlistRow[]
+    risk_stocks: WatchlistRow[]
+    watch_stocks: WatchlistRow[]
     legacy: WatchlistRow[]
   }
   rows: WatchlistRow[]
@@ -4525,8 +4593,23 @@ function WatchlistTabbedTable({
     },
     {
       key: 'focus_stocks',
-      label: locale === 'zh-CN' ? '关注个股' : 'Stocks',
+      label: locale === 'zh-CN' ? '真实买点' : 'Entries',
       count: groups.focus_stocks.length,
+    },
+    {
+      key: 'risk_stocks',
+      label: locale === 'zh-CN' ? '风险/止盈止损' : 'Risk',
+      count: groups.risk_stocks.length,
+    },
+    {
+      key: 'watch_stocks',
+      label: locale === 'zh-CN' ? '观察/预热' : 'Watch',
+      count: groups.watch_stocks.length,
+    },
+    {
+      key: 'buy_candidates',
+      label: locale === 'zh-CN' ? '策略候选' : 'Strategy',
+      count: groups.buy_candidates.length,
     },
   ]
   return (
@@ -4583,7 +4666,7 @@ function watchlistGridTemplate(activeTab: WatchlistTabKey, rangeColumnCount: num
   if (activeTab === 'sector_boards') {
     return `minmax(138px, 1.35fr) 58px 78px 92px${rangeColumns}`
   }
-  if (activeTab === 'focus_stocks') {
+  if (activeTab === 'focus_stocks' || activeTab === 'buy_candidates' || activeTab === 'risk_stocks' || activeTab === 'watch_stocks') {
     return `minmax(138px, 1.35fr) 58px 52px 88px${rangeColumns}`
   }
   return `minmax(138px, 1.35fr) 58px 52px 76px${rangeColumns}`
@@ -4600,10 +4683,34 @@ function watchlistHeaders(activeTab: WatchlistTabKey, locale: LongclawLocale): [
   }
   if (activeTab === 'focus_stocks') {
     return [
-      locale === 'zh-CN' ? '个股' : 'Stock',
+      locale === 'zh-CN' ? '买点' : 'Entry',
       locale === 'zh-CN' ? '最新' : 'Last',
       locale === 'zh-CN' ? '日' : 'Day',
-      locale === 'zh-CN' ? '买点' : 'Setup',
+      locale === 'zh-CN' ? '入池依据' : 'Reason',
+    ]
+  }
+  if (activeTab === 'risk_stocks') {
+    return [
+      locale === 'zh-CN' ? '风险' : 'Risk',
+      locale === 'zh-CN' ? '最新' : 'Last',
+      locale === 'zh-CN' ? '日' : 'Day',
+      locale === 'zh-CN' ? '处理' : 'Action',
+    ]
+  }
+  if (activeTab === 'watch_stocks') {
+    return [
+      locale === 'zh-CN' ? '观察' : 'Watch',
+      locale === 'zh-CN' ? '最新' : 'Last',
+      locale === 'zh-CN' ? '日' : 'Day',
+      locale === 'zh-CN' ? '状态' : 'State',
+    ]
+  }
+  if (activeTab === 'buy_candidates') {
+    return [
+      locale === 'zh-CN' ? '策略' : 'Strategy',
+      locale === 'zh-CN' ? '最新' : 'Last',
+      locale === 'zh-CN' ? '日' : 'Day',
+      locale === 'zh-CN' ? '候选' : 'Candidate',
     ]
   }
   return [
