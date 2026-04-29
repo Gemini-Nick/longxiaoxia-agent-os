@@ -1827,26 +1827,18 @@ function ensureSignalOverlay() {
       const data = recordValue(overlay.extendData) as SignalOverlayData
       const label = data.label || 'SIG'
       const side = data.side === 'sell' ? 'sell' : data.side === 'neutral' ? 'neutral' : 'buy'
-      const isCustom = Boolean(data.isCustom)
       const color = data.color || signalOverlayColor(side)
-      const freq = compactText(data.freq)
-      const sourceLabel = compactText(data.sourceLabel)
-      const customSource = sourceLabel || '自定义'
-      const text = isCustom ? label : label
-      const width = Math.max(isCustom ? 106 : 34, Math.min(isCustom ? 138 : 72, text.length * 7 + (isCustom ? 48 : 20)))
-      const height = isCustom ? 30 : 18
-      const gap = isCustom ? 16 : 8
+      const text = label
+      const width = Math.max(34, Math.min(62, text.length * 8 + 18))
+      const height = 18
+      const gap = 8
       const rectX = point.x - width / 2
       const rectY = side === 'buy' ? point.y + gap : point.y - gap - height
       const stemEndY = side === 'buy' ? rectY : rectY + height
       const tipY = side === 'buy' ? point.y + 5 : point.y - 5
-      const fillColor = isCustom
-        ? (side === 'sell' ? 'rgba(76, 5, 25, 0.96)' : 'rgba(8, 47, 73, 0.96)')
-        : 'rgba(15, 23, 42, 0.88)'
-      const borderSize = isCustom ? 1.4 : 1
-      const badgeWidth = Math.min(45, Math.max(32, customSource.length * 8 + 8))
-      const freqWidth = freq ? Math.min(34, Math.max(24, freq.length * 7 + 8)) : 0
-      const labelY = isCustom ? rectY + 21 : rectY + height / 2
+      const fillColor = 'rgba(15, 23, 42, 0.88)'
+      const borderSize = 1
+      const labelY = rectY + height / 2
 
       return [
         {
@@ -1857,23 +1849,7 @@ function ensureSignalOverlay() {
               { x: point.x, y: stemEndY },
             ],
           },
-          styles: { color, size: isCustom ? 1.2 : 1, style: isCustom ? 'solid' : 'dashed', dashedValue: [3, 3] },
-          ignoreEvent: true,
-        },
-        {
-          type: 'line',
-          attrs: {
-            coordinates: [
-              { x: point.x, y: Math.max(0, point.y - 280) },
-              { x: point.x, y: Math.min(10000, point.y + 280) },
-            ],
-          },
-          styles: {
-            color: isCustom ? `${color}aa` : `${color}44`,
-            size: isCustom ? 1 : 0.5,
-            style: 'dashed',
-            dashedValue: isCustom ? [3, 5] : [2, 6],
-          },
+          styles: { color, size: 1, style: 'dashed', dashedValue: [3, 3] },
           ignoreEvent: true,
         },
         {
@@ -1896,7 +1872,7 @@ function ensureSignalOverlay() {
             color: fillColor,
             borderColor: color,
             borderSize,
-            borderRadius: isCustom ? 4 : 3,
+            borderRadius: 3,
           },
           ignoreEvent: true,
         },
@@ -1910,78 +1886,18 @@ function ensureSignalOverlay() {
           },
           ignoreEvent: true,
         },
-        ...(isCustom ? [
-          {
-            type: 'rect' as const,
-            attrs: { x: rectX + 6, y: rectY + 4, width: badgeWidth, height: 11 },
-            styles: {
-              color: `${color}20`,
-              borderColor: color,
-              borderSize: 1,
-              borderRadius: 3,
-            },
-            ignoreEvent: true,
-          },
-          {
-            type: 'text' as const,
-            attrs: {
-              x: rectX + 6 + badgeWidth / 2,
-              y: rectY + 9.5,
-              text: customSource.slice(0, 4),
-              align: 'center',
-              baseline: 'middle',
-            },
-            styles: {
-              color,
-              size: 8,
-              weight: 900,
-              family: fontStacks.ui,
-            },
-            ignoreEvent: true,
-          },
-          ...(freq ? [
-            {
-              type: 'rect' as const,
-              attrs: { x: rectX + width - freqWidth - 6, y: rectY + 4, width: freqWidth, height: 11 },
-              styles: {
-                color: 'rgba(255,255,255,0.08)',
-                borderColor: tradingDeskTheme.alpha.textBorder,
-                borderSize: 1,
-                borderRadius: 3,
-              },
-              ignoreEvent: true,
-            },
-            {
-              type: 'text' as const,
-              attrs: {
-                x: rectX + width - freqWidth / 2 - 6,
-                y: rectY + 9.5,
-                text: freq,
-                align: 'center',
-                baseline: 'middle',
-              },
-              styles: {
-                color: terminalTheme.textStrong,
-                size: 8,
-                weight: 900,
-                family: fontStacks.mono,
-              },
-              ignoreEvent: true,
-            },
-          ] : []),
-        ] : []),
         {
           type: 'text',
           attrs: {
-            x: isCustom ? point.x : rectX + 12,
+            x: rectX + 12,
             y: labelY,
-            text: text.slice(0, isCustom ? 16 : 8),
-            align: isCustom ? 'center' : 'left',
+            text: text.slice(0, 8),
+            align: 'left',
             baseline: 'middle',
           },
           styles: {
             color: terminalTheme.textStrong,
-            size: isCustom ? 10 : 10,
+            size: 10,
             weight: 800,
             family: 'IBM Plex Mono, Menlo, monospace',
           },
