@@ -39,6 +39,7 @@
     "build:electron": "npm run electron:icon && npm run build && node electron/build.mjs",
     "electron:icon": "node scripts/generate-electron-icon.mjs",
     "electron:package:mac": "npm run build:electron && npx electron-builder --mac dir --config electron-builder.yml && node scripts/stamp-electron-app-icons.mjs release/mac-arm64",
+    "electron:install:mac": "npm run electron:package:mac && node scripts/install-electron-app.mjs",
     "electron:package:watch": "node scripts/electron-auto-package.mjs --watch",
     "electron:package:once": "node scripts/electron-auto-package.mjs --once",
     "electron:dist:mac": "npm run build:electron && npx electron-builder --mac dmg --config electron-builder.yml && node scripts/stamp-electron-app-icons.mjs release/mac-arm64",

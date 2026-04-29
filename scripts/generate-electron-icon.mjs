@@ -110,7 +110,14 @@ async function main() {
   )
 
   if (process.platform === 'darwin') {
-    execFileSync('iconutil', ['-c', 'icns', iconsetDir, '-o', icnsPath], { stdio: 'inherit' })
+    try {
+      execFileSync('iconutil', ['-c', 'icns', iconsetDir, '-o', icnsPath], { stdio: 'inherit' })
+    } catch (error) {
+      if (!fs.existsSync(icnsPath)) {
+        throw error
+      }
+      console.warn(`iconutil failed; keeping existing Electron icon: ${icnsPath}`)
+    }
   } else {
     console.warn('Skipping .icns generation because iconutil is only available on macOS.')
   }
