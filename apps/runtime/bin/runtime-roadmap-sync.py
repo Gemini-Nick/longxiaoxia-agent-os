@@ -793,6 +793,18 @@ def main() -> int:
     dashboard_file = knowledge_vault / "00 Dashboard" / "Longclaw Runtime.md"
     inbox_dir = knowledge_vault / "10 Inbox" / "WeChat"
     runtime_review_file = knowledge_vault / "10 Inbox" / "Runtime" / "Longclaw Runtime Review.md"
+    knowledge_projection_dir = expand(
+        os.getenv("LONGCLAW_KNOWLEDGE_PROJECTION_DIR", str(state_dir / "knowledge-dashboard"))
+    )
+    dashboard_write_file = expand(
+        os.getenv("LONGCLAW_KNOWLEDGE_DASHBOARD_WRITE_FILE", str(knowledge_projection_dir / "Longclaw Runtime.md"))
+    )
+    runtime_review_write_file = expand(
+        os.getenv(
+            "LONGCLAW_KNOWLEDGE_REVIEW_WRITE_FILE",
+            str(knowledge_projection_dir / "Longclaw Runtime Review.md"),
+        )
+    )
     hermes_repo = expand(os.getenv("LONGCLAW_HERMES_REPO", "~/github代码仓库/hermes-agent"))
     plan_path = hermes_repo / "docs" / "longclaw" / "PLAN.md"
     roadmap_path = hermes_repo / "docs" / "longclaw" / "ROADMAP.md"
@@ -823,6 +835,9 @@ def main() -> int:
             inbox_count = len([item for item in inbox_dir.iterdir() if item.is_file()])
     except Exception as exc:
         knowledge_signal_error = str(exc)
+    knowledge_signal_permission_limited = bool(
+        knowledge_signal_error and is_permission_boundary_error(knowledge_signal_error)
+    )
 
     roadmap_priorities = extract_section_bullets(roadmap_text, "## Near-term Priorities")
     plan_directions = extract_section_bullets(plan_text, "## Recommended Direction")
@@ -841,7 +856,7 @@ def main() -> int:
         )
         + (
             []
-            if not knowledge_signal_error or is_permission_boundary_error(knowledge_signal_error)
+            if not knowledge_signal_error or knowledge_signal_permission_limited
             else [f"knowledge_signal_read_failed: {knowledge_signal_error}"]
         )
     )
@@ -850,8 +865,8 @@ def main() -> int:
         pending_reviews.append(f"知识库 Inbox 待整理 {inbox_count} 条")
     if blocked_items:
         pending_reviews.append("检查 Longclaw Runtime Dashboard 中的阻塞项")
-    if knowledge_signal_error:
-        pending_reviews.append("授权 Longclaw Runtime 访问知识库 Desktop 目录，恢复 Dashboard 投影")
+    if knowledge_signal_error and not knowledge_signal_permission_limited:
+        pending_reviews.append("检查知识库 Inbox 读取错误")
     if active_agent.get("manual_override"):
         pending_reviews.append("当前处于 manual override，确认是否继续保持人工指定路由")
     if weclaw_ingress.get("session_window_parse_failures"):
@@ -911,14 +926,21 @@ def main() -> int:
 
     initial_knowledge_projection = {
         "generated_at": now_iso(),
-        "status": "pending" if knowledge_signal_error else ("active" if dashboard_file.exists() else "unknown"),
+        "status": "active" if dashboard_write_file.exists() or dashboard_file.exists() else "unknown",
         "vault_dir": str(knowledge_vault),
         "inbox_count": inbox_count,
+        "signal_status": (
+            "permission_limited"
+            if knowledge_signal_permission_limited
+            else ("error" if knowledge_signal_error else "ok")
+        ),
         "signal_error": knowledge_signal_error,
         "projection_error": None,
         "paths": {
             "dashboard_file": str(dashboard_file),
+            "dashboard_write_file": str(dashboard_write_file),
             "review_file": str(runtime_review_file),
+            "review_write_file": str(runtime_review_write_file),
             "projection_state_file": str(knowledge_projection_file),
         },
     }
@@ -950,6 +972,11 @@ def main() -> int:
             "vault_dir": str(knowledge_vault),
             "dashboard_file": str(dashboard_file),
             "inbox_count": inbox_count,
+            "signal_status": (
+                "permission_limited"
+                if knowledge_signal_permission_limited
+                else ("error" if knowledge_signal_error else "ok")
+            ),
             "signal_error": knowledge_signal_error,
         },
         "weclaw_ingress": weclaw_ingress,
@@ -975,7 +1002,7 @@ def main() -> int:
         "blocked_items": blocked_items,
         "pending_reviews": unique(pending_reviews),
         "pending_sync": {
-            "knowledge_projection": bool(knowledge_signal_error),
+            "knowledge_projection": False,
             "hermes_status": False,
         },
         "outputs": {
@@ -986,6 +1013,7 @@ def main() -> int:
             "wechat_notification_state_file": str(notification_state_file),
             "weclaw_bridge_health_file": str(bridge_health_file),
             "dashboard_file": str(dashboard_file),
+            "dashboard_write_file": str(dashboard_write_file),
             "hermes_status_json": str(hermes_status_json),
             "hermes_status_md": str(hermes_status_md),
         },
@@ -994,11 +1022,11 @@ def main() -> int:
     markdown = build_markdown(queue)
     runtime_review_markdown = build_runtime_review_markdown(queue)
 
-    knowledge_error = knowledge_signal_error
+    knowledge_error = None
     try:
-        write_text(dashboard_file, markdown.replace("# Longclaw Runtime Status", "# Longclaw Runtime"))
+        write_text(dashboard_write_file, markdown.replace("# Longclaw Runtime Status", "# Longclaw Runtime"))
         if queue["pending_reviews"] or queue["blocked_items"]:
-            write_text(runtime_review_file, runtime_review_markdown)
+            write_text(runtime_review_write_file, runtime_review_markdown)
     except Exception as exc:
         knowledge_error = str(exc)
         queue["pending_sync"]["knowledge_projection"] = True
