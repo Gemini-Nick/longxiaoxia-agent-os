@@ -2104,6 +2104,10 @@ function movingAverageLevel(data: KLineData[], period: number): number | undefin
   return sum / period
 }
 
+function isDailyFreq(freq?: string): boolean {
+  return normalizeSignalFreq(freq) === 'daily'
+}
+
 function derivedMaKeyLevels(data: KLineData[], freq?: string): StrategyKeyLevel[] {
   const normalized = normalizeSignalFreq(freq)
   const periods = normalized === 'weekly'
